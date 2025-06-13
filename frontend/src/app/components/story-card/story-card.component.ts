@@ -60,7 +60,8 @@ import { environment } from '../../../environments/environment';
             <img [src]="screenshotUrl" 
                  [alt]="story.title"
                  class="article-screenshot"
-                 (error)="onScreenshotError()">
+                 (error)="onScreenshotError()"
+                 (load)="isLoading = false">
           </div>
         </div>
 
