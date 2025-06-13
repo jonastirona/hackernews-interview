@@ -53,34 +53,56 @@ async def scrape_hn_frontpage(limit=10, offset=0):
         else:
             await page.goto("https://news.ycombinator.com/")
 
-        items = await page.query_selector_all('tr.athing')
-        # Calculate the correct slice based on offset
+        # Get all story rows
+        story_rows = await page.query_selector_all('tr.athing')
         start_idx = offset % 30
-        items = items[start_idx:start_idx + limit]
+        story_rows = story_rows[start_idx:start_idx + limit]
         
-        for item in items:
-            title = await item.query_selector('.titleline a')
+        for story_row in story_rows:
+            # Get the story data
+            title = await story_row.query_selector('.titleline a')
             title_text = await title.inner_text()
             url = await title.get_attribute('href')
-            hn_id = await item.get_attribute('id')
-            # Get the subtext row which follows the athing row
-            subtext = await page.query_selector(f'tr:has(td.subtext) + tr[data-hnid="{hn_id}"]')
-            points = "0 points"
+            hn_id = await story_row.get_attribute('id')
+            
+            # Get the subtext row that follows this story row
+            subtext_row = await page.query_selector(f'tr.athing[id="{hn_id}"] + tr')
+            
+            # Initialize default values
+            points = 0
             author = "unknown"
-            if subtext:
-                score = await subtext.query_selector('.score')
+            comments_count = 0
+            
+            if subtext_row:
+                # Get points
+                score = await subtext_row.query_selector('.score')
                 if score:
-                    points = await score.inner_text()
-                user = await subtext.query_selector('.hnuser')
+                    score_text = await score.inner_text()
+                    points = int(score_text.split()[0]) if score_text else 0
+                
+                # Get author
+                user = await subtext_row.query_selector('.hnuser')
                 if user:
                     author = await user.inner_text()
+                
+                # Get comments count - look for the last link in the subtext row
+                links = await subtext_row.query_selector_all('a')
+                if links:
+                    last_link = links[-1]  # The comments link is always the last one
+                    comments_text = await last_link.inner_text()
+                    if "comments" in comments_text:
+                        comments_count = int(comments_text.split()[0]) if comments_text else 0
+                    elif "discuss" in comments_text:
+                        comments_count = 0
 
             results.append({
                 "hn_id": int(hn_id),
                 "title": title_text,
-                "article_url": url,
+                "url": f"https://news.ycombinator.com/item?id={hn_id}",  # Link to HN discussion
+                "article_url": url,  # Link to actual article
                 "author": author,
-                "points": points
+                "points": points,
+                "comments_count": comments_count
             })
     finally:
         await page.close()
