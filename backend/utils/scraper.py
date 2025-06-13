@@ -134,13 +134,13 @@ async def scrape_full_article(url):
         trigger = has_bot_detection(content)
         if trigger:
             logger.warning(f"Bot detection triggered on {url} by phrase: '{trigger}'")
-            return {"error": f"Bot detection triggered by: {trigger}", "html": "<p>Article requires human verification</p>"}
+            return {"error": f"Bot detection triggered by: {trigger}", "html": "<p>Article requires human verification</p>", "text": ""}
         
         # Get the full HTML content
         html = await page.content()
     except Exception as e:
         logger.error(f"Error loading page {url}: {str(e)}")
-        return {"error": f"Error loading page: {str(e)}", "html": "<p>Error loading page</p>"}
+        return {"error": f"Error loading page: {str(e)}", "html": "<p>Error loading page</p>", "text": ""}
     finally:
         await page.close()
 
@@ -151,45 +151,39 @@ async def scrape_full_article(url):
         trigger = has_bot_detection(soup.get_text())
         if trigger:
             logger.warning(f"Bot detection triggered in parsed content for {url} by phrase: '{trigger}'")
-            return {"error": f"Bot detection triggered by: {trigger}", "html": "<p>Article requires human verification</p>"}
+            return {"error": f"Bot detection triggered by: {trigger}", "html": "<p>Article requires human verification</p>", "text": ""}
         
         # Try to find the main content container
-        main = None
+        article = soup.find("main") or soup.find("article")
         
-        # Try common article content selectors
-        selectors = [
-            "main",
-            "article",
-            "div.content",
-            "div.article",
-            "div.post",
-            "div.entry-content",
-            "div.post-content",
-            "div#content",
-            "div.container",
-            "div.wrapper"
-        ]
+        if not article:
+            # Fallback: largest div with text length > 500
+            candidates = sorted(
+                soup.find_all("div"),
+                key=lambda tag: len(tag.get_text(strip=True)),
+                reverse=True
+            )
+            for tag in candidates:
+                if len(tag.get_text(strip=True)) > 500:
+                    article = tag
+                    break
         
-        for selector in selectors:
-            main = soup.select_one(selector)
-            if main and len(main.get_text().strip()) > 100:  # Ensure we have substantial content
-                break
+        if not article:
+            return {"error": "No content found", "html": "", "text": ""}
         
-        # If no specific content found, try to find the div with the most text content
-        if not main:
-            divs = soup.find_all("div")
-            if divs:
-                main = max(divs, key=lambda d: len(d.get_text().strip()))
+        # Get metadata
+        title = soup.find('title')
+        meta_description = soup.find('meta', attrs={'name': 'description'})
+        og_image = soup.find('meta', attrs={'property': 'og:image'})
         
-        # If still no content, use the body
-        if not main or len(main.get_text().strip()) < 100:
-            main = soup.find("body")
-        
-        if not main:
-            return {"error": "Could not extract content", "html": "<p>Could not extract content</p>"}
+        metadata = {
+            'title': title.text if title else '',
+            'description': meta_description.get('content', '') if meta_description else '',
+            'og_image': og_image.get('content', '') if og_image else ''
+        }
         
         # Process images
-        for img in main.find_all('img'):
+        for img in article.find_all('img'):
             # Get image source
             src = img.get('src', '')
             if src:
@@ -207,32 +201,41 @@ async def scrape_full_article(url):
                 
                 # Add data-src for lazy loading
                 img['data-src'] = src
+                
+                # Add error handling for images
+                img['onerror'] = "this.style.display='none'"
+        
+        # Process videos
+        for video in article.find_all('video'):
+            # Get video source
+            src = video.get('src', '')
+            if src:
+                # Convert relative URLs to absolute
+                if not bool(urlparse(src).netloc):
+                    src = urljoin(url, src)
+                video['src'] = src
+                
+                # Add error handling for videos
+                video['onerror'] = "this.style.display='none'"
         
         # Process links to make them absolute
-        for a in main.find_all('a'):
+        for a in article.find_all('a'):
             href = a.get('href', '')
             if href and not bool(urlparse(href).netloc):
                 a['href'] = urljoin(url, href)
         
-        # Get metadata
-        title = soup.find('title')
-        meta_description = soup.find('meta', attrs={'name': 'description'})
-        og_image = soup.find('meta', attrs={'property': 'og:image'})
-        
-        metadata = {
-            'title': title.text if title else '',
-            'description': meta_description.get('content', '') if meta_description else '',
-            'og_image': og_image.get('content', '') if og_image else ''
-        }
+        # Get clean text
+        text = article.get_text(separator=" ", strip=True)
         
         return {
-            'html': str(main),
+            'html': str(article),
+            'text': text,
             'metadata': metadata,
             'url': url
         }
     except Exception as e:
         logger.error(f"Error processing content for {url}: {str(e)}")
-        return {"error": f"Error processing content: {str(e)}", "html": "<p>Error processing content</p>"}
+        return {"error": f"Error processing content: {str(e)}", "html": "<p>Error processing content</p>", "text": ""}
 
 async def scrape_hn_comments(hn_id, offset=0, limit=10):
     browser = await get_browser()

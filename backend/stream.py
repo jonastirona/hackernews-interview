@@ -34,8 +34,13 @@ async def stream_articles(offset: int = 0, limit: int = 10):
                 
                 # Generate hook for the article
                 try:
-                    story["hook"] = await generate_hook_async(article_data["html"])
-                    logger.info(f"Generated hook for story {story['hn_id']}")
+                    hook = await generate_hook_async(article_data["html"])
+                    if hook:
+                        story["hook"] = hook
+                        logger.info(f"Generated hook for story {story['hn_id']}")
+                    else:
+                        logger.warning(f"No hook generated for story {story['hn_id']}")
+                        story["hook"] = ""
                 except Exception as e:
                     logger.error(f"Error generating hook: {str(e)}")
                     story["hook"] = ""
