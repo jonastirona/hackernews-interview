@@ -12,6 +12,7 @@ export interface Story {
     author: string;
     text: string;
     points: number;
+    depth: number;
   }[];
   analysis?: string;
   hook?: string;
