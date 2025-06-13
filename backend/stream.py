@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from utils.scraper import scrape_hn_frontpage, scrape_full_article, scrape_hn_comments
-from utils.gemini import analyze_article
+from utils.gemini import analyze_article, generate_hook
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,14 @@ async def stream_articles(offset: int = 0, limit: int = 10):
                     
                 story["full_article_html"] = article_data["html"]
                 story["article_metadata"] = article_data["metadata"]
+                
+                # Generate hook for the article
+                try:
+                    story["hook"] = generate_hook(article_data["html"])
+                    logger.info(f"Generated hook for story {story['hn_id']}")
+                except Exception as e:
+                    logger.error(f"Error generating hook: {str(e)}")
+                    story["hook"] = ""
                 
                 # Get comments
                 try:
