@@ -1,38 +1,18 @@
 import { Injectable } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
-
-export interface Story {
-  hn_id: string;
-  title: string;
-  url: string;
-  article_url: string;
-  points: number;
-  author: string;
-  comments_count: number;
-  full_article_html?: string;
-  article_metadata?: any;
-  top_comments?: {
-    author: string;
-    text: string;
-    points: number;
-  }[];
-  analysis?: string;
-  hook?: string;
-  expanded?: boolean;
-  showArticle?: boolean;
-  showComments?: boolean;
-}
+import { Story } from '../models/story.model';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ApiService {
   private apiUrl = 'http://localhost:8001';
-  private eventSource: EventSource | null = null;
   private stories: Story[] = [];
+  private eventSource: EventSource | null = null;
   private isConnecting = false;
   private isComplete = false;
   private hasReceivedData = false;
+  private hasMoreStories = true;
 
   constructor() {}
 
@@ -50,10 +30,13 @@ export class ApiService {
       // Only clear stories if we're starting from the beginning
       if (offset === 0) {
         this.stories = [];
+        this.hasMoreStories = true;
       }
 
-      if (this.eventSource) {
-        this.eventSource.close();
+      if (!this.hasMoreStories) {
+        observer.next([...this.stories]);
+        observer.complete();
+        return;
       }
 
       this.eventSource = new EventSource(`${this.apiUrl}/analyze?offset=${offset}&limit=${limit}`);
@@ -61,14 +44,33 @@ export class ApiService {
       // Handle regular data events
       this.eventSource.onmessage = (event) => {
         try {
-          const story = JSON.parse(event.data);
+          const data = JSON.parse(event.data);
           this.hasReceivedData = true;
-          this.stories.push({
-            ...story,
-            expanded: false,
-            showArticle: false,
-            showComments: false
-          });
+          
+          // Update has_more flag
+          if (data.has_more !== undefined) {
+            this.hasMoreStories = data.has_more;
+          }
+          
+          // Find if story already exists
+          const existingStoryIndex = this.stories.findIndex(s => s.hn_id === data.hn_id);
+          
+          if (existingStoryIndex === -1) {
+            // New story
+            this.stories.push({
+              ...data,
+              expanded: false,
+              showArticle: false,
+              showComments: false
+            });
+          } else {
+            // Update existing story
+            this.stories[existingStoryIndex] = {
+              ...this.stories[existingStoryIndex],
+              ...data
+            };
+          }
+          
           observer.next([...this.stories]);
         } catch (error) {
           console.error('Error parsing story data:', error);
@@ -82,54 +84,69 @@ export class ApiService {
 
       // Handle error events
       this.eventSource.addEventListener('error', (event: MessageEvent) => {
-        // Only treat as error if we haven't received any data or if it's a real error
-        if (!this.hasReceivedData || (event.data && !this.isComplete)) {
-          if (event.data) {
-            try {
-              const data = JSON.parse(event.data);
-              console.error('Error event:', data);
-              observer.error(data);
-            } catch (error) {
-              console.error('Error parsing error event:', error);
-              observer.error(error);
-            }
-          } else {
-            console.error('EventSource error:', event);
-            observer.error(event);
-          }
+        if (!this.isComplete) {
+          observer.error('Connection error');
         }
         this.cleanup();
       });
 
-      // Handle connection errors
-      this.eventSource.onerror = (error) => {
-        // Only treat as error if we haven't received any data
-        if (!this.hasReceivedData) {
-          console.error('EventSource connection error:', error);
-          observer.error(error);
-        }
-        this.cleanup();
-      };
-
-      // Handle successful completion
+      // Handle complete event
       this.eventSource.addEventListener('complete', () => {
         this.isComplete = true;
         this.cleanup();
         observer.complete();
       });
 
+      // Return cleanup function
       return () => {
         this.cleanup();
       };
     });
   }
 
+  async loadMoreComments(storyId: string, offset: number): Promise<{stories: Story[], hasMore: boolean}> {
+    try {
+      const response = await fetch(`${this.apiUrl}/debug/comments?id=${storyId}&offset=${offset}`);
+      const data = await response.json();
+      
+      // Find the story and update its comments
+      const storyIndex = this.stories.findIndex(s => s.hn_id === storyId);
+      if (storyIndex !== -1) {
+        const story = this.stories[storyIndex];
+        const existingComments = story.top_comments || [];
+        
+        // Filter out any potential duplicates based on author and text
+        const existingCommentKeys = new Set(
+          existingComments.map(c => `${c.author}:${c.text}`)
+        );
+        
+        const uniqueNewComments = data.comments.filter(
+          (c: any) => !existingCommentKeys.has(`${c.author}:${c.text}`)
+        );
+        
+        story.top_comments = [...existingComments, ...uniqueNewComments];
+        this.stories[storyIndex] = story;
+      }
+      
+      return {
+        stories: [...this.stories],
+        hasMore: data.has_more
+      };
+    } catch (error) {
+      console.error('Error loading more comments:', error);
+      throw error;
+    }
+  }
+
+  canLoadMoreStories(): boolean {
+    return this.hasMoreStories;
+  }
+
   private cleanup() {
     if (this.eventSource) {
-      console.log('Cleaning up EventSource');
       this.eventSource.close();
       this.eventSource = null;
-      this.isConnecting = false;
     }
+    this.isConnecting = false;
   }
 }
