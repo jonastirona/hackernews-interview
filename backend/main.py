@@ -1,9 +1,20 @@
 from fastapi import FastAPI
-from .utils.scraper import scrape_hn_frontpage, scrape_full_article, scrape_hn_comments, close_browser
-from .stream import stream_articles
+from fastapi.middleware.cors import CORSMiddleware
+from utils.scraper import scrape_hn_frontpage, scrape_full_article, scrape_hn_comments, close_browser
+from stream import stream_articles
 from fastapi.responses import StreamingResponse
 
 app = FastAPI()
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:4200"],  # Angular dev server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"]
+)
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -23,4 +34,12 @@ async def test_comments(id: int):
 
 @app.get("/analyze")
 async def analyze(offset: int = 0, limit: int = 10):
-    return StreamingResponse(stream_articles(offset, limit), media_type="text/event-stream")
+    return StreamingResponse(
+        stream_articles(offset, limit),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
