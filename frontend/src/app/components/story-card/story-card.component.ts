@@ -1,3 +1,19 @@
+/**
+ * Story card component for displaying Hacker News articles.
+ * 
+ * This component displays a single Hacker News story with:
+ * - Article title and metadata (points, author, comments)
+ * - AI-generated hook/summary
+ * - Article screenshot with loading states
+ * - Comments section with pagination
+ * - Toggle buttons for article and comments visibility
+ * 
+ * The component handles:
+ * - Screenshot loading and error states
+ * - Comment pagination
+ * - Article and comment visibility toggling
+ * - External link handling
+ */
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Story } from '../../models/story.model';
@@ -282,15 +298,31 @@ import { environment } from '../../../environments/environment';
   `]
 })
 export class StoryCardComponent implements OnInit, OnChanges {
+  /** Input story data from parent component */
   @Input() story!: Story;
+  
+  /** Event emitter for loading more comments */
   @Output() loadMoreComments = new EventEmitter<{storyId: string, offset: number}>();
   
+  /** Visibility state for article content */
   showArticle = false;
+  
+  /** Visibility state for comments section */
   showComments = false;
+  
+  /** Current offset for paginated comments */
   commentsOffset = 0;
+  
+  /** Flag indicating if more comments are available */
   hasMoreComments = true;
+  
+  /** Error message for screenshot loading failures */
   screenshotError: string | null = null;
+  
+  /** URL for the article screenshot */
   screenshotUrl: string | null = null;
+  
+  /** Loading state for screenshot */
   isLoading = false;
 
   constructor() {}
@@ -307,6 +339,7 @@ export class StoryCardComponent implements OnInit, OnChanges {
     }
   }
 
+  /** Toggle article content visibility */
   toggleArticle() {
     this.showArticle = !this.showArticle;
     if (this.showArticle) {
@@ -315,6 +348,7 @@ export class StoryCardComponent implements OnInit, OnChanges {
     }
   }
 
+  /** Toggle comments section visibility */
   toggleComments() {
     this.showComments = !this.showComments;
     if (this.showComments) {
@@ -322,6 +356,7 @@ export class StoryCardComponent implements OnInit, OnChanges {
     }
   }
 
+  /** Load more comments when pagination button is clicked */
   onLoadMoreComments() {
     this.commentsOffset += 10;
     this.loadMoreComments.emit({
@@ -330,16 +365,19 @@ export class StoryCardComponent implements OnInit, OnChanges {
     });
   }
 
+  /** Update comments pagination state */
   updateComments(hasMore: boolean) {
     this.hasMoreComments = hasMore;
   }
 
+  /** Handle screenshot loading errors */
   onScreenshotError() {
     this.screenshotError = "Failed to load screenshot - Please visit the article directly";
     this.isLoading = false;
     this.screenshotUrl = null;
   }
 
+  /** Get the full URL for the article screenshot */
   getScreenshotUrl(): string {
     if (!this.story.screenshot_path) return '';
     return `${environment.apiUrl}${this.story.screenshot_path}`;
@@ -358,6 +396,7 @@ export class StoryCardComponent implements OnInit, OnChanges {
     this.screenshotUrl = this.getScreenshotUrl();
   }
 
+  /** Extract domain from URL for display */
   getDomain(url: string): string {
     try {
       const domain = new URL(url).hostname;
@@ -367,6 +406,7 @@ export class StoryCardComponent implements OnInit, OnChanges {
     }
   }
 
+  /** Format timestamp as relative time */
   getTimeAgo(timestamp: number): string {
     const seconds = Math.floor((Date.now() - timestamp * 1000) / 1000);
     if (seconds < 60) return `${seconds} seconds ago`;

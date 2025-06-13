@@ -1,3 +1,11 @@
+"""Server-sent events streaming for article analysis.
+
+This module provides functionality to:
+- Stream Hacker News articles with AI analysis
+- Cache processed articles for performance
+- Handle article content, screenshots, and comments
+"""
+
 import asyncio
 import json
 import logging
@@ -9,23 +17,36 @@ from screenshot import screenshot_manager
 
 logger = logging.getLogger(__name__)
 
+# Configure cache directory
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "cache")
 Path(CACHE_DIR).mkdir(parents=True, exist_ok=True)
 
 def is_valid_story_cache(data):
-    # Minimal required fields for a valid cache (must match Story interface)
+    """Check if cached story data contains all required fields.
+    
+    Args:
+        data: Dictionary containing cached story data
+        
+    Returns:
+        bool: True if all required fields are present
+    """
     required_fields = [
         "hn_id", "title", "url", "article_url", "points", "author", "comments_count", "time",
         "full_article_html", "article_metadata", "screenshot_path", "screenshot_error",
         "hook", "top_comments", "analysis"
     ]
-    for field in required_fields:
-        if field not in data:
-            return False
-    return True
+    return all(field in data for field in required_fields)
 
 async def stream_articles(offset: int = 0, limit: int = 10):
-    """Stream articles with analysis results."""
+    """Stream articles with analysis results as server-sent events.
+    
+    Args:
+        offset: Number of stories to skip
+        limit: Maximum number of stories to process
+        
+    Yields:
+        Server-sent events with article data and analysis
+    """
     try:
         logger.info(f"Starting to stream articles with offset={offset}, limit={limit}")
         
@@ -35,7 +56,7 @@ async def stream_articles(offset: int = 0, limit: int = 10):
         
         for story in stories:
             try:
-                hn_id = str(story.get("id", story.get("hn_id", "")))  # Try both id and hn_id fields
+                hn_id = str(story.get("id", story.get("hn_id", "")))
                 if not hn_id:
                     logger.error(f"Story missing ID: {story}")
                     continue
@@ -43,6 +64,8 @@ async def stream_articles(offset: int = 0, limit: int = 10):
                 cache_path = os.path.join(CACHE_DIR, f"{hn_id}.json")
                 cache_hit = False
                 story_data = None
+                
+                # Check cache for existing story data
                 if os.path.exists(cache_path):
                     try:
                         with open(cache_path, "r", encoding="utf-8") as f:
@@ -54,6 +77,7 @@ async def stream_articles(offset: int = 0, limit: int = 10):
                             logger.warning(f"[CACHE CORRUPT/INCOMPLETE] {hn_id}, reprocessing...")
                     except Exception as e:
                         logger.warning(f"[CACHE ERROR] {hn_id}: {e}, reprocessing...")
+                
                 if not cache_hit:
                     try:
                         yield f"event: log\ndata: Fetching {story['title']}...\n\n"
@@ -69,7 +93,7 @@ async def stream_articles(offset: int = 0, limit: int = 10):
                             story["full_article_html"] = article_data["html"]
                             story["article_metadata"] = article_data["metadata"]
                         
-                        # Take screenshot of the article
+                        # Take screenshot
                         story["screenshot_path"] = None
                         story["screenshot_error"] = None
                         try:
@@ -78,7 +102,6 @@ async def stream_articles(offset: int = 0, limit: int = 10):
                                 story["hn_id"]
                             )
                             if screenshot_path:
-                                # Ensure screenshot path starts with /static/screenshots/
                                 if not screenshot_path.startswith("/static/screenshots/"):
                                     screenshot_path = f"/static/screenshots/{os.path.basename(screenshot_path)}"
                                 story["screenshot_path"] = screenshot_path
@@ -88,7 +111,7 @@ async def stream_articles(offset: int = 0, limit: int = 10):
                             logger.error(f"Error taking screenshot: {str(e)}")
                             story["screenshot_error"] = str(e)
                         
-                        # Generate hook for the article
+                        # Generate hook
                         try:
                             if story["full_article_html"]:
                                 hook = await generate_hook_async(story["full_article_html"])
@@ -132,10 +155,8 @@ async def stream_articles(offset: int = 0, limit: int = 10):
                                 }
                             }
                         
-                        # Add has_more flag
+                        # Prepare story data
                         story["has_more"] = frontpage_data["has_more"]
-                        
-                        # Yield the story data
                         story_data = {
                             "hn_id": hn_id,
                             "title": story.get("title", ""),
@@ -154,33 +175,38 @@ async def stream_articles(offset: int = 0, limit: int = 10):
                             "analysis": story.get("analysis", {}),
                             "has_more": story.get("has_more", False)
                         }
+                        
                         # Save to cache
                         try:
                             with open(cache_path, "w", encoding="utf-8") as f:
                                 json.dump(story_data, f, ensure_ascii=False)
                         except Exception as e:
                             logger.error(f"[CACHE WRITE ERROR] {hn_id}: {e}")
-                        # Ensure screenshot_path is correct for frontend
+                            
+                        # Ensure screenshot path is correct
                         if story_data.get("screenshot_path") and not story_data["screenshot_path"].startswith("/static/"):
                             story_data["screenshot_path"] = "/static/screenshots/" + os.path.basename(story_data["screenshot_path"])
+                            
                         yield f"data: {json.dumps(story_data)}\n\n"
-                        # Add a small delay between stories to prevent overwhelming the client
-                        await asyncio.sleep(0.1)
+                        await asyncio.sleep(0.1)  # Prevent overwhelming client
+                        
                     except Exception as e:
                         error_msg = f"Error processing story {story.get('title', 'unknown')}: {str(e)}"
                         logger.error(error_msg)
                         yield f"event: error\ndata: {json.dumps({'error': error_msg, 'title': story.get('title', 'unknown')})}\n\n"
-                        continue  # Continue with next story instead of breaking the stream
+                        continue
                 else:
-                    # For cache hit, ensure screenshot_path is correct for frontend
+                    # Handle cached story
                     if story_data.get("screenshot_path") and not story_data["screenshot_path"].startswith("/static/"):
                         story_data["screenshot_path"] = "/static/screenshots/" + os.path.basename(story_data["screenshot_path"])
                     yield f"data: {json.dumps(story_data)}\n\n"
+                    
             except Exception as e:
                 error_msg = f"Error processing story: {str(e)}"
                 logger.error(error_msg)
                 yield f"event: error\ndata: {json.dumps({'error': error_msg})}\n\n"
-        # Send complete event after all stories are processed
+                
+        # Send completion event
         yield f"event: complete\ndata: {json.dumps({'has_more': frontpage_data['has_more']})}\n\n"
                 
     except Exception as e:

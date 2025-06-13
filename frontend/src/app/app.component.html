@@ -1,4 +1,7 @@
-<!-- Skeleton Loader (when loading) -->
+<!-- ==========================================================================
+     Loading State
+     Shows skeleton loader while content is being fetched
+     ========================================================================== -->
 <ng-container *ngIf="loading; else content">
   <div class="container max-w-[1400px] mx-auto px-8 py-6">
     <div *ngFor="let i of [1,2,3,4,5]" class="animate-pulse bg-white rounded-xl p-4 shadow mb-6">
@@ -13,10 +16,13 @@
   </div>
 </ng-container>
 
-<!-- Real Content -->
+<!-- ==========================================================================
+     Main Content Template
+     Displays stories, error messages, and pagination controls
+     ========================================================================== -->
 <ng-template #content>
   <div class="container max-w-[1400px] mx-auto px-8 py-6">
-    <!-- Error Message -->
+    <!-- Error Message Display -->
     <div *ngIf="error" class="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
       <div class="flex">
         <div class="flex-shrink-0">
@@ -30,19 +36,20 @@
       </div>
     </div>
 
-    <!-- Stories Grid -->
+    <!-- Stories Grid Layout -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Individual Story Card -->
       <div *ngFor="let story of stories" 
            class="rounded-xl shadow border bg-white p-4 mb-6">
-        <!-- Story Header -->
+        <!-- Story Header with Title and Meta -->
         <div>
           <h2 class="text-xl font-bold text-[#2c3e50]">{{ story.title }}</h2>
           <p class="text-sm text-[#7f8c8d]">{{ story.points }} • {{ story.author }}</p>
         </div>
 
-        <!-- Content -->
+        <!-- Story Content Section -->
         <div class="mt-4 space-y-4">
-          <!-- Article Toggle -->
+          <!-- Article Content Toggle -->
           <div>
             <button class="text-[#3498db] text-sm font-semibold mb-2 hover:text-[#2980b9] transition-colors duration-200" 
                     (click)="toggleArticle($event, story)">
@@ -54,7 +61,7 @@
             </div>
           </div>
 
-          <!-- Comments Toggle -->
+          <!-- Comments Section Toggle -->
           <div>
             <button class="text-[#3498db] text-sm font-semibold mb-2 hover:text-[#2980b9] transition-colors duration-200" 
                     (click)="toggleComments($event, story)">
@@ -72,7 +79,7 @@
       </div>
     </div>
 
-    <!-- Load More Button -->
+    <!-- Pagination Control -->
     <button (click)="loadMoreStories()" 
             [disabled]="loading"
             class="mt-8 w-full bg-[#2ecc71] text-white px-6 py-3 rounded-lg hover:bg-[#27ae60] transition-colors duration-200 disabled:bg-[#7f8c8d] disabled:cursor-not-allowed">

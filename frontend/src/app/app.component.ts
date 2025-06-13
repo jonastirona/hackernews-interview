@@ -1,3 +1,12 @@
+/**
+ * Main application component for the Hacker News reader.
+ * 
+ * This component manages:
+ * - Story loading and pagination
+ * - Error handling and retry functionality
+ * - Story card rendering and state management
+ * - Comment loading and pagination
+ */
 import { Component, OnInit, OnDestroy, ViewChildren, QueryList } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from './services/api.service';
@@ -17,6 +26,7 @@ import { Subscription } from 'rxjs';
       </header>
 
       <main>
+        <!-- Error message display with retry option -->
         <div *ngIf="error" class="error-message">
           <span class="error-icon">⚠️</span>
           {{ error }}
@@ -25,10 +35,12 @@ import { Subscription } from 'rxjs';
           </button>
         </div>
 
+        <!-- Loading state indicator -->
         <div *ngIf="loading && stories.length === 0" class="loading">
           Loading stories...
         </div>
 
+        <!-- Stories list with pagination -->
         <div *ngIf="!error" class="stories">
           <app-story-card
             *ngFor="let story of stories"
@@ -36,6 +48,7 @@ import { Subscription } from 'rxjs';
             (loadMoreComments)="onLoadMoreComments($event)">
           </app-story-card>
 
+          <!-- Load more button -->
           <button
             *ngIf="stories.length > 0 && hasMoreStories"
             (click)="loadMoreStories()"
@@ -144,27 +157,52 @@ import { Subscription } from 'rxjs';
   `]
 })
 export class AppComponent implements OnInit, OnDestroy {
+  /** Reference to all story card components */
   @ViewChildren(StoryCardComponent) storyCards!: QueryList<StoryCardComponent>;
+  
+  /** Array of stories to display */
   stories: Story[] = [];
+  
+  /** Loading state indicator */
   loading = false;
+  
+  /** Error message if any */
   error: string | null = null;
+  
+  /** Subscription to API calls */
   private subscription: Subscription | null = null;
+  
+  /** Current pagination offset */
   private offset = 0;
+  
+  /** Number of stories to load per page */
   private limit = 10;
+  
+  /** Flag indicating if more stories are available */
   hasMoreStories = true;
 
   constructor(private apiService: ApiService) {}
 
+  /**
+   * Initialize component and load initial stories
+   */
   ngOnInit() {
     this.loadStories();
   }
 
+  /**
+   * Clean up subscriptions when component is destroyed
+   */
   ngOnDestroy() {
     if (this.subscription) {
       this.subscription.unsubscribe();
     }
   }
 
+  /**
+   * Load stories from the API
+   * Handles both initial load and pagination
+   */
   loadStories() {
     this.loading = true;
     this.error = null;
@@ -192,12 +230,14 @@ export class AppComponent implements OnInit, OnDestroy {
       },
       complete: () => {
         this.loading = false;
-        // Keep the stories after completion
         this.stories = this.apiService.getCurrentStories();
       }
     });
   }
 
+  /**
+   * Load more stories by incrementing the offset
+   */
   loadMoreStories() {
     if (!this.loading && this.hasMoreStories) {
       this.offset += this.limit;
@@ -205,11 +245,18 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Retry loading stories after an error
+   */
   retry() {
     this.error = null;
     this.loadStories();
   }
 
+  /**
+   * Handle loading more comments for a story
+   * @param event Object containing storyId and offset
+   */
   async onLoadMoreComments(event: {storyId: string, offset: number}) {
     try {
       const result = await this.apiService.loadMoreComments(event.storyId, event.offset);
@@ -219,14 +266,26 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Toggle story expansion state
+   * @param story Story to toggle
+   */
   toggleStory(story: Story) {
     story.expanded = !story.expanded;
   }
 
+  /**
+   * Toggle article visibility
+   * @param story Story to toggle article for
+   */
   toggleArticle(story: Story) {
     story.showArticle = !story.showArticle;
   }
 
+  /**
+   * Toggle comments visibility
+   * @param story Story to toggle comments for
+   */
   toggleComments(story: Story) {
     story.showComments = !story.showComments;
   }

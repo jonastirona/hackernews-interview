@@ -1,3 +1,11 @@
+"""Screenshot management for article content.
+
+This module provides functionality to:
+- Take screenshots of web articles using Playwright
+- Handle bot detection and anti-automation measures
+- Manage screenshot storage and retrieval
+"""
+
 from playwright.async_api import async_playwright, TimeoutError
 import asyncio
 import os
@@ -10,24 +18,31 @@ import random
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Update paths to be relative to the backend directory
+# Path to fallback image for failed screenshots
 FALLBACK_IMAGE = os.path.join(os.path.dirname(__file__), "static/screenshots/fallback.png")
 
 class ScreenshotError(Exception):
-    """Custom exception for screenshot errors"""
+    """Custom exception for screenshot-related errors."""
     def __init__(self, message: str, error_type: str):
         self.message = message
         self.error_type = error_type
         super().__init__(self.message)
 
 class ScreenshotManager:
+    """Manages the creation and storage of article screenshots."""
+    
     def __init__(self, screenshot_dir: str = None):
+        """Initialize the screenshot manager.
+        
+        Args:
+            screenshot_dir: Directory to store screenshots (defaults to static/screenshots)
+        """
         if screenshot_dir is None:
             screenshot_dir = os.path.join(os.path.dirname(__file__), "static/screenshots")
         self.screenshot_dir = screenshot_dir
         # Create screenshot directory if it doesn't exist
         Path(screenshot_dir).mkdir(parents=True, exist_ok=True)
-        # Ensure fallback image exists (create a simple one if not)
+        # Ensure fallback image exists
         if not os.path.exists(FALLBACK_IMAGE):
             from PIL import Image, ImageDraw, ImageFont
             img = Image.new('RGB', (1280, 800), color=(240, 240, 240))
@@ -36,11 +51,16 @@ class ScreenshotManager:
             img.save(FALLBACK_IMAGE)
         
     async def take_screenshot(self, url: str, article_id: str) -> Tuple[Optional[str], Optional[str]]:
+        """Take a screenshot of a web page.
+        
+        Args:
+            url: URL of the page to screenshot
+            article_id: Unique identifier for the article
+            
+        Returns:
+            Tuple of (screenshot_path, error_message)
         """
-        Take a screenshot of the given URL and save it to the screenshot directory.
-        Returns (path, message): path to the saved screenshot or None, and a message if blocked/failed.
-        """
-        # Check if screenshot already exists
+        # Check for existing screenshot
         filename = f"{article_id}.png"
         filepath = os.path.join(self.screenshot_dir, filename)
         if os.path.exists(filepath):
@@ -52,6 +72,7 @@ class ScreenshotManager:
         page = None
         try:
             async with async_playwright() as p:
+                # Launch browser with anti-detection settings
                 browser = await p.chromium.launch(headless=True, args=[
                     "--disable-blink-features=AutomationControlled",
                     "--no-sandbox",
@@ -63,7 +84,7 @@ class ScreenshotManager:
                     "--disable-features=IsolateOrigins,site-per-process"
                 ])
                 
-                # Enhanced browser context with more realistic settings
+                # Configure browser context with realistic settings
                 context = await browser.new_context(
                     user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                     locale="en-US",
@@ -94,7 +115,7 @@ class ScreenshotManager:
                 
                 page = await context.new_page()
 
-                # Enhanced anti-detection measures
+                # Add anti-detection scripts
                 await page.add_init_script("""
                     Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
                     Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
@@ -105,11 +126,11 @@ class ScreenshotManager:
                     window.chrome = { runtime: {} };
                 """)
 
-                # Random delay to mimic human behavior
+                # Add random delay to mimic human behavior
                 await asyncio.sleep(random.uniform(1.0, 2.5))
 
                 try:
-                    # Set a longer timeout for loading pages
+                    # Load page with extended timeout
                     response = await page.goto(url, wait_until="domcontentloaded", timeout=60000)
                     if not response:
                         return None, "Failed to load page: No response"
@@ -136,7 +157,6 @@ class ScreenshotManager:
                                 await delay(Math.random() * 500 + 500);
                             }
                             
-                            // Scroll back to top
                             window.scrollTo({
                                 top: 0,
                                 behavior: 'smooth'
@@ -144,14 +164,13 @@ class ScreenshotManager:
                         }
                     """)
                     
-                    # Additional wait for dynamic content
+                    # Wait for dynamic content
                     await asyncio.sleep(random.uniform(2, 4))
                     
-                    # Check if page is still valid
                     if page.is_closed():
                         return None, "Page was closed unexpectedly"
 
-                    # Enhanced block detection
+                    # Check for bot detection
                     content = await page.content()
                     block_phrases = [
                         "blocked", "robot", "suspect", "unusual traffic", "verify you are a human",
@@ -170,7 +189,6 @@ class ScreenshotManager:
                     if is_wordpress:
                         # Additional wait for WordPress content
                         await asyncio.sleep(3)
-                        # Try to scroll more to load lazy content
                         await page.evaluate("""
                             window.scrollTo({
                                 top: document.body.scrollHeight / 2,
@@ -183,7 +201,7 @@ class ScreenshotManager:
                         logger.warning(f"Blocked or bot detected at {url}, returning block message.")
                         return None, "Screenshot blocked by site"
 
-                    # Try to take screenshot with different viewport sizes if needed
+                    # Try different viewport sizes for screenshot
                     for viewport_height in [800, 1200, 1600]:
                         try:
                             if page.is_closed():
@@ -192,7 +210,6 @@ class ScreenshotManager:
                             await page.set_viewport_size({'width': 1280, 'height': viewport_height})
                             await asyncio.sleep(1)  # Wait for resize
                             
-                            # Additional check for page validity
                             if not page.is_closed():
                                 await page.screenshot(path=filepath, full_page=True)
                                 break
@@ -218,6 +235,7 @@ class ScreenshotManager:
             logger.error(f"Failed to take screenshot of {url}: {str(e)}")
             return None, f"Failed to take screenshot: {str(e)}"
         finally:
+            # Clean up browser resources
             if page and not page.is_closed():
                 try:
                     await page.close()
@@ -234,5 +252,5 @@ class ScreenshotManager:
                 except Exception as e:
                     logger.error(f"Error closing browser: {str(e)}")
 
-# Create a singleton instance
+# Create singleton instance
 screenshot_manager = ScreenshotManager() 

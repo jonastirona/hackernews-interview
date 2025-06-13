@@ -1,11 +1,22 @@
-/* You can add global styles to this file, and also import other style files */
+/* ==========================================================================
+   Global Styles
+   This file contains global styles that apply to the entire application.
+   ========================================================================== */
+
+/* Reset default browser styles */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+/* Base body styles */
 body {
+  /* System font stack for optimal text rendering across platforms */
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   padding: 2rem;
+  /* Ensure minimum height for better mobile experience */
+  min-height: 100vh;
+  /* Smooth scrolling behavior */
+  scroll-behavior: smooth;
 }

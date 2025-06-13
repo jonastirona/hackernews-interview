@@ -1,3 +1,9 @@
+"""Package setup for Hacker News article analysis backend.
+
+This package provides a FastAPI backend for analyzing Hacker News articles,
+generating AI summaries, and taking screenshots of articles.
+"""
+
 from setuptools import setup, find_packages
 
 setup(
@@ -12,4 +18,5 @@ setup(
         "google-generativeai",
         "python-dotenv",
     ],
+    python_requires=">=3.8",
 ) 

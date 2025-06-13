@@ -1,3 +1,11 @@
+"""Gemini API integration for article analysis and hook generation.
+
+This module provides functions to interact with Google's Gemini API for:
+- Generating article hooks
+- Analyzing article content and comments
+- Content validation and processing
+"""
+
 import google.generativeai as genai
 import logging
 import os
@@ -12,18 +20,14 @@ from bs4 import BeautifulSoup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load environment variables from .env file
+# Load environment variables and configure Gemini API
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
-
-# Configure Gemini API with API key
 api_key = os.getenv('GEMINI_API_KEY')
 if not api_key:
     raise ValueError("GEMINI_API_KEY not found in environment variables")
-
-# Configure the API with the key
 genai.configure(api_key=api_key)
 
-# Content validation constants
+# Content validation thresholds
 MIN_CONTENT_LENGTH = 50
 MAX_CONTENT_LENGTH = 15000
 MIN_COMMENT_LENGTH = 5
@@ -31,21 +35,28 @@ MAX_COMMENT_LENGTH = 2000
 MAX_COMMENTS = 10
 
 def validate_content(content: str, min_length: int = MIN_CONTENT_LENGTH, max_length: int = MAX_CONTENT_LENGTH) -> tuple[bool, str]:
-    """Validate content before sending to Gemini."""
+    """Validate and clean content before sending to Gemini.
+    
+    Args:
+        content: The text content to validate
+        min_length: Minimum allowed content length
+        max_length: Maximum allowed content length
+        
+    Returns:
+        Tuple of (is_valid, cleaned_content)
+    """
     if not content or not isinstance(content, str):
         return False, "Content is empty or not a string"
     
-    # Remove extra whitespace
     content = re.sub(r'\s+', ' ', content.strip())
     
     if len(content) < min_length:
         return False, f"Content too short (min {min_length} chars)"
     
     if len(content) > max_length:
-        # Instead of failing, truncate the content
         content = content[:max_length]
     
-    # Only check for critical error patterns
+    # Check for common error patterns in content
     error_patterns = [
         r'error loading page',
         r'page not found',
@@ -61,7 +72,14 @@ def validate_content(content: str, min_length: int = MIN_CONTENT_LENGTH, max_len
     return True, content
 
 def validate_comments(comments: list) -> tuple[bool, list]:
-    """Validate comments before sending to Gemini."""
+    """Validate and clean comments before sending to Gemini.
+    
+    Args:
+        comments: List of comment dictionaries
+        
+    Returns:
+        Tuple of (has_valid_comments, cleaned_comments)
+    """
     if not comments or not isinstance(comments, list):
         return False, []
     
@@ -74,7 +92,6 @@ def validate_comments(comments: list) -> tuple[bool, list]:
         if not text or not isinstance(text, str):
             continue
             
-        # Validate comment text with more lenient settings
         is_valid, validated_text = validate_content(
             text,
             min_length=MIN_COMMENT_LENGTH,
@@ -91,12 +108,22 @@ def validate_comments(comments: list) -> tuple[bool, list]:
     if not valid_comments:
         return False, []
     
-    # Limit number of comments
-    valid_comments = valid_comments[:MAX_COMMENTS]
-    return True, valid_comments
+    return True, valid_comments[:MAX_COMMENTS]
 
 async def run_with_timeout(func, *args, timeout=30, **kwargs):
-    """Run a function with a timeout."""
+    """Run a function with a timeout in an async context.
+    
+    Args:
+        func: Function to run
+        timeout: Maximum execution time in seconds
+        *args, **kwargs: Arguments to pass to the function
+        
+    Returns:
+        Function result
+        
+    Raises:
+        TimeoutError: If function execution exceeds timeout
+    """
     try:
         return await asyncio.wait_for(asyncio.to_thread(func, *args, **kwargs), timeout=timeout)
     except asyncio.TimeoutError:
@@ -107,31 +134,32 @@ async def run_with_timeout(func, *args, timeout=30, **kwargs):
         raise
 
 def generate_hook(html_content: str) -> str:
-    """Generate a 2-3 sentence hook for an article using Gemini."""
+    """Generate a compelling 2-3 sentence hook for an article.
+    
+    Args:
+        html_content: Article content in HTML or plain text format
+        
+    Returns:
+        Generated hook text or error message
+    """
     try:
-        # Extract text content from HTML if needed
+        # Extract and clean text content from HTML
         if isinstance(html_content, str) and html_content.strip().startswith('<'):
             soup = BeautifulSoup(html_content, 'html.parser')
-            # Remove script and style elements
             for script in soup(["script", "style"]):
                 script.decompose()
-            # Get text and clean it
             content = soup.get_text(separator=' ', strip=True)
-            # Remove extra whitespace and normalize
             content = ' '.join(content.split())
         else:
             content = html_content
 
-        # Validate content
         is_valid, result = validate_content(content)
         if not is_valid:
             logger.warning(f"Invalid content for hook generation: {result}")
             return "Unable to generate a hook for this article. Please click the link to read more."
         
-        # Using gemini-1.5-flash as it's a stable model from the list
         model = genai.GenerativeModel('gemini-1.5-flash')
         
-        # Create a more focused prompt
         prompt = f"""Write a compelling 2-3 sentence hook for this technical article. Focus on the most interesting or unique aspects that would make readers want to learn more.
 
 Article content:
@@ -139,7 +167,6 @@ Article content:
 
 Hook:"""
         
-        # Generate with minimal safety settings
         response = model.generate_content(
             prompt,
             generation_config={
@@ -149,13 +176,11 @@ Hook:"""
             }
         )
         
-        # Extract and clean the response
         hook = response.text.strip()
         if not hook:
             logger.warning("Empty hook generated")
             return "Unable to generate a hook for this article. Please click the link to read more."
             
-        # Ensure the hook is not too long
         if len(hook) > 500:
             hook = hook[:497] + "..."
             
@@ -166,22 +191,26 @@ Hook:"""
         return "There was an error processing this article. Please click the link to read more."
 
 def analyze_article(html_content: str, comments: list) -> Dict[str, Any]:
-    """Analyze article content and comments using Gemini."""
+    """Analyze article content and comments to generate a structured summary.
+    
+    Args:
+        html_content: Article content in HTML or plain text format
+        comments: List of comment dictionaries
+        
+    Returns:
+        Dictionary containing analysis results and metadata
+    """
     try:
-        # Extract text content from HTML if needed
+        # Extract and clean text content from HTML
         if isinstance(html_content, str) and html_content.strip().startswith('<'):
             soup = BeautifulSoup(html_content, 'html.parser')
-            # Remove script and style elements
             for script in soup(["script", "style"]):
                 script.decompose()
-            # Get text and clean it
             content = soup.get_text(separator=' ', strip=True)
-            # Remove extra whitespace and normalize
             content = ' '.join(content.split())
         else:
             content = html_content
 
-        # Validate content
         is_valid, result = validate_content(content)
         if not is_valid:
             logger.warning(f"Invalid content for analysis: {result}")
@@ -193,15 +222,12 @@ def analyze_article(html_content: str, comments: list) -> Dict[str, Any]:
                 }
             }
         
-        # Validate comments
         has_valid_comments, valid_comments = validate_comments(comments)
         if not has_valid_comments:
             logger.warning("No valid comments found for analysis")
         
-        # Using gemini-1.5-flash as it's a stable model from the list
         model = genai.GenerativeModel('gemini-1.5-flash')
         
-        # Format comments
         comments_text = ""
         if valid_comments:
             comments_text = "\n".join([
@@ -209,7 +235,6 @@ def analyze_article(html_content: str, comments: list) -> Dict[str, Any]:
                 for i, c in enumerate(valid_comments)
             ])
         
-        # Create a more structured prompt
         prompt = f"""Analyze this technical article and its comments. Structure your response in three clear sections:
 
 1. Summary (2-3 sentences):
@@ -224,7 +249,6 @@ Comments:
 
 Analysis:"""
         
-        # Generate with minimal safety settings
         response = model.generate_content(
             prompt,
             generation_config={
@@ -253,9 +277,9 @@ Analysis:"""
         }
 
 async def generate_hook_async(html_content: str) -> str:
-    """Asynchronous wrapper for generate_hook with timeout."""
-    return await run_with_timeout(generate_hook, html_content, timeout=30)
+    """Async wrapper for generate_hook with timeout."""
+    return await run_with_timeout(generate_hook, html_content)
 
 async def analyze_article_async(html_content: str, comments: list) -> Dict[str, Any]:
-    """Asynchronous wrapper for analyze_article with timeout."""
-    return await run_with_timeout(analyze_article, html_content, comments, timeout=60)
+    """Async wrapper for analyze_article with timeout."""
+    return await run_with_timeout(analyze_article, html_content, comments)
