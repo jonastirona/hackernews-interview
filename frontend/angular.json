@@ -65,10 +65,10 @@
           },
           "configurations": {
             "production": {
-              "browserTarget": "hackernews-interview:build:production"
+              "buildTarget": "hackernews-interview:build:production"
             },
             "development": {
-              "browserTarget": "hackernews-interview:build:development"
+              "buildTarget": "hackernews-interview:build:development"
             }
           },
           "defaultConfiguration": "development"
