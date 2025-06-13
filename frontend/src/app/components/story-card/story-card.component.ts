@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Story } from '../../models/story.model';
 
@@ -49,12 +49,21 @@ import { Story } from '../../models/story.model';
         </div>
 
         <div class="comments-section" *ngIf="showComments">
-          <div class="comment" *ngFor="let comment of story.top_comments">
+          <div class="comment" *ngFor="let comment of story.top_comments" [style.margin-left.px]="comment.depth * 20">
             <div class="comment-meta">
               <span class="comment-author">{{ comment.author }}</span>
-              <span class="comment-points">{{ comment.points }} points</span>
             </div>
             <div class="comment-text" [innerHTML]="comment.text"></div>
+          </div>
+          
+          <button 
+            *ngIf="story.top_comments && story.top_comments.length < story.comments_count && hasMoreComments"
+            (click)="onLoadMoreComments()"
+            class="load-more-comments">
+            Load More Comments
+          </button>
+          <div *ngIf="!hasMoreComments && story.top_comments && story.top_comments.length > 0" class="no-more-comments">
+            No more comments to load
           </div>
         </div>
       </div>
@@ -167,6 +176,7 @@ import { Story } from '../../models/story.model';
       background: #f9f9f9;
       border-radius: 4px;
       margin-bottom: 0.5rem;
+      border-left: 2px solid #e0e0e0;
     }
 
     .comment-meta {
@@ -184,12 +194,43 @@ import { Story } from '../../models/story.model';
       font-size: 0.95rem;
       line-height: 1.5;
     }
+
+    .load-more-comments {
+      width: 100%;
+      padding: 0.75rem;
+      margin-top: 1rem;
+      background: #f5f5f5;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      color: #666;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .load-more-comments:hover {
+      background: #e5e5e5;
+    }
+
+    .no-more-comments {
+      text-align: center;
+      color: #666;
+      font-size: 0.9rem;
+      margin-top: 1rem;
+      padding: 0.5rem;
+      background: #f5f5f5;
+      border-radius: 4px;
+    }
   `]
 })
 export class StoryCardComponent {
   @Input() story!: Story;
+  @Output() loadMoreComments = new EventEmitter<{storyId: string, offset: number}>();
+  
   showArticle = false;
   showComments = false;
+  commentsOffset = 0;
+  hasMoreComments = true;
 
   toggleArticle() {
     this.showArticle = !this.showArticle;
@@ -197,5 +238,17 @@ export class StoryCardComponent {
 
   toggleComments() {
     this.showComments = !this.showComments;
+  }
+
+  onLoadMoreComments() {
+    this.commentsOffset += 10;
+    this.loadMoreComments.emit({
+      storyId: this.story.hn_id,
+      offset: this.commentsOffset
+    });
+  }
+
+  updateComments(hasMore: boolean) {
+    this.hasMoreComments = hasMore;
   }
 } 

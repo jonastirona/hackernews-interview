@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChildren, QueryList } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from './services/api.service';
 import { Story } from './models/story.model';
@@ -32,16 +32,20 @@ import { Subscription } from 'rxjs';
         <div *ngIf="!loading && !error" class="stories">
           <app-story-card
             *ngFor="let story of stories"
-            [story]="story">
+            [story]="story"
+            (loadMoreComments)="onLoadMoreComments($event)">
           </app-story-card>
 
           <button
-            *ngIf="stories.length > 0"
+            *ngIf="stories.length > 0 && hasMoreStories"
             (click)="loadMoreStories()"
             [disabled]="loading"
             class="load-more">
             {{ loading ? 'Loading...' : 'Load More Stories' }}
           </button>
+          <div *ngIf="!hasMoreStories && stories.length > 0" class="no-more-stories">
+            No more stories to load
+          </div>
         </div>
       </main>
     </div>
@@ -127,15 +131,27 @@ import { Subscription } from 'rxjs';
       background-color: #ccc;
       cursor: not-allowed;
     }
+
+    .no-more-stories {
+      text-align: center;
+      color: #666;
+      font-size: 0.9rem;
+      margin-top: 2rem;
+      padding: 1rem;
+      background: #f5f5f5;
+      border-radius: 4px;
+    }
   `]
 })
 export class AppComponent implements OnInit, OnDestroy {
+  @ViewChildren(StoryCardComponent) storyCards!: QueryList<StoryCardComponent>;
   stories: Story[] = [];
   loading = false;
   error: string | null = null;
   private subscription: Subscription | null = null;
   private offset = 0;
   private limit = 10;
+  hasMoreStories = true;
 
   constructor(private apiService: ApiService) {}
 
@@ -167,6 +183,7 @@ export class AppComponent implements OnInit, OnDestroy {
           this.stories = [...this.stories, ...uniqueNewStories];
         }
         this.loading = false;
+        this.hasMoreStories = this.apiService.canLoadMoreStories();
       },
       error: (err) => {
         this.error = 'Error loading stories. Please try again later.';
@@ -177,6 +194,21 @@ export class AppComponent implements OnInit, OnDestroy {
         this.loading = false;
       }
     });
+  }
+
+  async onLoadMoreComments(event: {storyId: string, offset: number}) {
+    try {
+      const result = await this.apiService.loadMoreComments(event.storyId, event.offset);
+      this.stories = result.stories;
+      
+      // Find the story card component and update its hasMoreComments state
+      const storyCard = this.storyCards.find(card => card.story.hn_id === event.storyId);
+      if (storyCard) {
+        storyCard.updateComments(result.hasMore);
+      }
+    } catch (error) {
+      console.error('Error loading more comments:', error);
+    }
   }
 
   loadMoreStories() {
