@@ -25,11 +25,11 @@ import { Subscription } from 'rxjs';
           </button>
         </div>
 
-        <div *ngIf="loading" class="loading">
+        <div *ngIf="loading && stories.length === 0" class="loading">
           Loading stories...
         </div>
 
-        <div *ngIf="!loading && !error" class="stories">
+        <div *ngIf="!error" class="stories">
           <app-story-card
             *ngFor="let story of stories"
             [story]="story"
@@ -192,33 +192,31 @@ export class AppComponent implements OnInit, OnDestroy {
       },
       complete: () => {
         this.loading = false;
+        // Keep the stories after completion
+        this.stories = this.apiService.getCurrentStories();
       }
     });
+  }
+
+  loadMoreStories() {
+    if (!this.loading && this.hasMoreStories) {
+      this.offset += this.limit;
+      this.loadStories();
+    }
+  }
+
+  retry() {
+    this.error = null;
+    this.loadStories();
   }
 
   async onLoadMoreComments(event: {storyId: string, offset: number}) {
     try {
       const result = await this.apiService.loadMoreComments(event.storyId, event.offset);
       this.stories = result.stories;
-      
-      // Find the story card component and update its hasMoreComments state
-      const storyCard = this.storyCards.find(card => card.story.hn_id === event.storyId);
-      if (storyCard) {
-        storyCard.updateComments(result.hasMore);
-      }
     } catch (error) {
       console.error('Error loading more comments:', error);
     }
-  }
-
-  loadMoreStories() {
-    this.offset += this.limit;
-    this.loadStories();
-  }
-
-  retry() {
-    this.error = null;
-    this.loadStories();
   }
 
   toggleStory(story: Story) {

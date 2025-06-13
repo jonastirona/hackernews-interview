@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Observable, Subject } from 'rxjs';
+import { Observable, Subject, BehaviorSubject } from 'rxjs';
 import { Story } from '../models/story.model';
 
 @Injectable({
@@ -13,8 +13,33 @@ export class ApiService {
   private isComplete = false;
   private hasReceivedData = false;
   private hasMoreStories = true;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 3;
+  private reconnectDelay = 1000;
+  private currentOffset = 0;
 
   constructor() {}
+
+  private cleanup() {
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    this.isConnecting = false;
+  }
+
+  private async reconnect(observer: any, offset: number, limit: number) {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      observer.error('Maximum reconnection attempts reached');
+      return;
+    }
+
+    this.reconnectAttempts++;
+    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // Exponential backoff
+    
+    await new Promise(resolve => setTimeout(resolve, delay));
+    this.getStories(offset, limit).subscribe(observer);
+  }
 
   getStories(offset: number = 0, limit: number = 10): Observable<Story[]> {
     return new Observable<Story[]>(observer => {
@@ -26,11 +51,13 @@ export class ApiService {
       this.isConnecting = true;
       this.isComplete = false;
       this.hasReceivedData = false;
+      this.currentOffset = offset;
       
       // Only clear stories if we're starting from the beginning
       if (offset === 0) {
         this.stories = [];
         this.hasMoreStories = true;
+        this.reconnectAttempts = 0;
       }
 
       if (!this.hasMoreStories) {
@@ -46,6 +73,7 @@ export class ApiService {
         try {
           const data = JSON.parse(event.data);
           this.hasReceivedData = true;
+          this.reconnectAttempts = 0; // Reset reconnect attempts on successful data
           
           // Update has_more flag
           if (data.has_more !== undefined) {
@@ -85,13 +113,26 @@ export class ApiService {
       // Handle error events
       this.eventSource.addEventListener('error', (event: MessageEvent) => {
         if (!this.isComplete) {
-          observer.error('Connection error');
+          if (this.hasReceivedData) {
+            // If we've received data before, try to reconnect
+            this.cleanup();
+            this.reconnect(observer, this.currentOffset, limit);
+          } else {
+            observer.error('Connection error');
+          }
         }
-        this.cleanup();
       });
 
       // Handle complete event
-      this.eventSource.addEventListener('complete', () => {
+      this.eventSource.addEventListener('complete', (event: MessageEvent) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.has_more !== undefined) {
+            this.hasMoreStories = data.has_more;
+          }
+        } catch (error) {
+          console.error('Error parsing complete event data:', error);
+        }
         this.isComplete = true;
         this.cleanup();
         observer.complete();
@@ -102,6 +143,14 @@ export class ApiService {
         this.cleanup();
       };
     });
+  }
+
+  canLoadMoreStories(): boolean {
+    return this.hasMoreStories;
+  }
+
+  getCurrentStories(): Story[] {
+    return [...this.stories];
   }
 
   async loadMoreComments(storyId: string, offset: number): Promise<{stories: Story[], hasMore: boolean}> {
@@ -136,17 +185,5 @@ export class ApiService {
       console.error('Error loading more comments:', error);
       throw error;
     }
-  }
-
-  canLoadMoreStories(): boolean {
-    return this.hasMoreStories;
-  }
-
-  private cleanup() {
-    if (this.eventSource) {
-      this.eventSource.close();
-      this.eventSource = null;
-    }
-    this.isConnecting = false;
   }
 }

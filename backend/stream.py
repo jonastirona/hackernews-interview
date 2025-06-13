@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from utils.scraper import scrape_hn_frontpage, scrape_full_article, scrape_hn_comments
-from utils.gemini import analyze_article, generate_hook
+from utils.gemini import generate_hook_async, analyze_article_async
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ async def stream_articles(offset: int = 0, limit: int = 10):
                 
                 # Generate hook for the article
                 try:
-                    story["hook"] = generate_hook(article_data["html"])
+                    story["hook"] = await generate_hook_async(article_data["html"])
                     logger.info(f"Generated hook for story {story['hn_id']}")
                 except Exception as e:
                     logger.error(f"Error generating hook: {str(e)}")
@@ -52,12 +52,19 @@ async def stream_articles(offset: int = 0, limit: int = 10):
                 # Analyze with Gemini
                 yield f"event: log\ndata: Analyzing {story['title']}...\n\n"
                 try:
-                    story["analysis"] = analyze_article(story["full_article_html"], story["top_comments"])
+                    analysis_result = await analyze_article_async(story["full_article_html"], story["top_comments"])
+                    story["analysis"] = analysis_result
                     logger.info(f"Successfully analyzed article {story['hn_id']}")
                 except Exception as e:
                     error_msg = f"Error analyzing article: {str(e)}"
                     logger.error(error_msg)
-                    story["analysis"] = error_msg
+                    story["analysis"] = {
+                        "analysis": error_msg,
+                        "metadata": {
+                            "error": str(e),
+                            "model": "gemini-1.5-flash"
+                        }
+                    }
                 
                 # Add has_more flag
                 story["has_more"] = frontpage_data["has_more"]
@@ -74,6 +81,10 @@ async def stream_articles(offset: int = 0, limit: int = 10):
                 error_msg = f"Error processing story {story.get('title', 'unknown')}: {str(e)}"
                 logger.error(error_msg)
                 yield f"event: error\ndata: {json.dumps({'error': error_msg, 'title': story.get('title', 'unknown')})}\n\n"
+                continue  # Continue with next story instead of breaking the stream
+        
+        # Send complete event after all stories are processed
+        yield f"event: complete\ndata: {json.dumps({'has_more': frontpage_data['has_more']})}\n\n"
                 
     except Exception as e:
         error_msg = f"Stream error: {str(e)}"

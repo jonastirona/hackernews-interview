@@ -2,18 +2,41 @@ import google.generativeai as genai
 import logging
 import os
 from typing import Dict, Any, Optional
+from dotenv import load_dotenv
+import asyncio
+from functools import partial
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configure Gemini API
-genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+# Load environment variables from .env file
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
+
+# Configure Gemini API with API key
+api_key = os.getenv('GEMINI_API_KEY')
+if not api_key:
+    raise ValueError("GEMINI_API_KEY not found in environment variables")
+
+# Configure the API with the key
+genai.configure(api_key=api_key)
+
+async def run_with_timeout(func, *args, timeout=30, **kwargs):
+    """Run a function with a timeout."""
+    try:
+        return await asyncio.wait_for(asyncio.to_thread(func, *args, **kwargs), timeout=timeout)
+    except asyncio.TimeoutError:
+        logger.error(f"Function {func.__name__} timed out after {timeout} seconds")
+        raise TimeoutError(f"Operation timed out after {timeout} seconds")
+    except Exception as e:
+        logger.error(f"Error in {func.__name__}: {str(e)}")
+        raise
 
 def generate_hook(html_content: str) -> str:
     """Generate a 2-3 sentence hook for an article using Gemini."""
     try:
-        model = genai.GenerativeModel('gemini-1.0-flash')
+        # Using gemini-1.5-flash as it's a stable model from the list
+        model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"""Given this article content, write a 2-3 sentence hook that captures the most interesting aspects and makes readers want to read more. Focus on the key insights or unique angles.
 
 Article content:
@@ -30,7 +53,8 @@ Hook:"""
 def analyze_article(html_content: str, comments: list) -> Dict[str, Any]:
     """Analyze article content and comments using Gemini."""
     try:
-        model = genai.GenerativeModel('gemini-1.0-flash')
+        # Using gemini-1.5-flash as it's a stable model from the list
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
         # Limit content and comments for processing
         content = html_content[:2000]  # First 2000 chars of article
@@ -53,7 +77,7 @@ Analysis:"""
         return {
             "analysis": response.text.strip(),
             "metadata": {
-                "model": "gemini-1.0-flash",
+                "model": "gemini-1.5-flash",
                 "content_length": len(html_content),
                 "comments_analyzed": len(comments)
             }
@@ -64,6 +88,14 @@ Analysis:"""
             "analysis": "Error analyzing article content.",
             "metadata": {
                 "error": str(e),
-                "model": "gemini-1.0-flash"
+                "model": "gemini-1.5-flash"
             }
         }
+
+async def generate_hook_async(html_content: str) -> str:
+    """Asynchronous wrapper for generate_hook with timeout."""
+    return await run_with_timeout(generate_hook, html_content, timeout=30)
+
+async def analyze_article_async(html_content: str, comments: list) -> Dict[str, Any]:
+    """Asynchronous wrapper for analyze_article with timeout."""
+    return await run_with_timeout(analyze_article, html_content, comments, timeout=60)
