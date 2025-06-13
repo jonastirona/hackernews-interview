@@ -1,12 +1,13 @@
 import { Injectable } from '@angular/core';
 import { Observable, Subject, BehaviorSubject } from 'rxjs';
 import { Story } from '../models/story.model';
+import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ApiService {
-  private apiUrl = 'http://localhost:8001';
+  private apiUrl = environment.apiUrl;
   private stories: Story[] = [];
   private eventSource: EventSource | null = null;
   private isConnecting = false;
@@ -14,7 +15,7 @@ export class ApiService {
   private hasReceivedData = false;
   private hasMoreStories = true;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 3;
+  private maxReconnectAttempts = 5;  // Increased max attempts
   private reconnectDelay = 1000;
   private currentOffset = 0;
 
@@ -37,6 +38,7 @@ export class ApiService {
     this.reconnectAttempts++;
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // Exponential backoff
     
+    console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${delay}ms...`);
     await new Promise(resolve => setTimeout(resolve, delay));
     this.getStories(offset, limit).subscribe(observer);
   }
@@ -66,82 +68,89 @@ export class ApiService {
         return;
       }
 
-      this.eventSource = new EventSource(`${this.apiUrl}/analyze?offset=${offset}&limit=${limit}`);
+      try {
+        this.eventSource = new EventSource(`${this.apiUrl}/analyze?offset=${offset}&limit=${limit}`);
 
-      // Handle regular data events
-      this.eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          this.hasReceivedData = true;
-          this.reconnectAttempts = 0; // Reset reconnect attempts on successful data
-          
-          // Update has_more flag
-          if (data.has_more !== undefined) {
-            this.hasMoreStories = data.has_more;
+        // Handle regular data events
+        this.eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            this.hasReceivedData = true;
+            this.reconnectAttempts = 0; // Reset reconnect attempts on successful data
+            
+            // Update has_more flag
+            if (data.has_more !== undefined) {
+              this.hasMoreStories = data.has_more;
+            }
+            
+            // Find if story already exists
+            const existingStoryIndex = this.stories.findIndex(s => s.hn_id === data.hn_id);
+            
+            if (existingStoryIndex === -1) {
+              // New story
+              this.stories.push({
+                ...data,
+                expanded: false,
+                showArticle: false,
+                showComments: false
+              });
+            } else {
+              // Update existing story
+              this.stories[existingStoryIndex] = {
+                ...this.stories[existingStoryIndex],
+                ...data
+              };
+            }
+            
+            observer.next([...this.stories]);
+          } catch (error) {
+            console.error('Error parsing story data:', error);
           }
-          
-          // Find if story already exists
-          const existingStoryIndex = this.stories.findIndex(s => s.hn_id === data.hn_id);
-          
-          if (existingStoryIndex === -1) {
-            // New story
-            this.stories.push({
-              ...data,
-              expanded: false,
-              showArticle: false,
-              showComments: false
-            });
-          } else {
-            // Update existing story
-            this.stories[existingStoryIndex] = {
-              ...this.stories[existingStoryIndex],
-              ...data
-            };
+        };
+
+        // Handle log events
+        this.eventSource.addEventListener('log', (event: MessageEvent) => {
+          console.log('Log event:', event.data);
+        });
+
+        // Handle error events
+        this.eventSource.addEventListener('error', (event: MessageEvent) => {
+          console.error('EventSource error:', event);
+          if (!this.isComplete) {
+            if (this.hasReceivedData) {
+              // If we've received data before, try to reconnect
+              this.cleanup();
+              this.reconnect(observer, this.currentOffset, limit);
+            } else {
+              observer.error('Connection error');
+            }
           }
-          
-          observer.next([...this.stories]);
-        } catch (error) {
-          console.error('Error parsing story data:', error);
-        }
-      };
+        });
 
-      // Handle log events
-      this.eventSource.addEventListener('log', (event: MessageEvent) => {
-        console.log('Log event:', event.data);
-      });
-
-      // Handle error events
-      this.eventSource.addEventListener('error', (event: MessageEvent) => {
-        if (!this.isComplete) {
-          if (this.hasReceivedData) {
-            // If we've received data before, try to reconnect
-            this.cleanup();
-            this.reconnect(observer, this.currentOffset, limit);
-          } else {
-            observer.error('Connection error');
+        // Handle complete event
+        this.eventSource.addEventListener('complete', (event: MessageEvent) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.has_more !== undefined) {
+              this.hasMoreStories = data.has_more;
+            }
+          } catch (error) {
+            console.error('Error parsing complete event data:', error);
           }
-        }
-      });
+          this.isComplete = true;
+          this.cleanup();
+          observer.complete();
+        });
 
-      // Handle complete event
-      this.eventSource.addEventListener('complete', (event: MessageEvent) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.has_more !== undefined) {
-            this.hasMoreStories = data.has_more;
-          }
-        } catch (error) {
-          console.error('Error parsing complete event data:', error);
-        }
-        this.isComplete = true;
-        this.cleanup();
-        observer.complete();
-      });
-
-      // Return cleanup function
-      return () => {
-        this.cleanup();
-      };
+        // Return cleanup function
+        return () => {
+          this.cleanup();
+        };
+      } catch (error) {
+        console.error('Error creating EventSource:', error);
+        observer.error('Failed to create connection');
+        return;
+      }
     });
   }
 
@@ -156,6 +165,9 @@ export class ApiService {
   async loadMoreComments(storyId: string, offset: number): Promise<{stories: Story[], hasMore: boolean}> {
     try {
       const response = await fetch(`${this.apiUrl}/debug/comments?id=${storyId}&offset=${offset}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
       
       // Find the story and update its comments

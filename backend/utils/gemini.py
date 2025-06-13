@@ -128,38 +128,41 @@ def generate_hook(html_content: str) -> str:
             logger.warning(f"Invalid content for hook generation: {result}")
             return ""
         
-        # Using gemini-1.5-flash as it's a stable model from the list
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # # Using gemini-1.5-flash as it's a stable model from the list
+        # model = genai.GenerativeModel('gemini-1.5-flash')
         
-        # Create a more focused prompt
-        prompt = f"""Write a compelling 2-3 sentence hook for this technical article. Focus on the most interesting or unique aspects that would make readers want to learn more.
+        # # Create a more focused prompt
+        # prompt = f"""Write a compelling 2-3 sentence hook for this technical article. Focus on the most interesting or unique aspects that would make readers want to learn more.
 
-Article content:
-{result[:2000]}
+        # Article content:
+        # {result[:2000]}
 
-Hook:"""
+        # Hook:"""
         
-        # Generate with minimal safety settings
-        response = model.generate_content(
-            prompt,
-            generation_config={
-                "temperature": 0.7,
-                "top_p": 0.8,
-                "top_k": 40
-            }
-        )
+        # # Generate with minimal safety settings
+        # response = model.generate_content(
+        #     prompt,
+        #     generation_config={
+        #         "temperature": 0.7,
+        #         "top_p": 0.8,
+        #         "top_k": 40
+        #     }
+        # )
         
-        # Extract and clean the response
-        hook = response.text.strip()
-        if not hook:
-            logger.warning("Empty hook generated")
-            return ""
+        # # Extract and clean the response
+        # hook = response.text.strip()
+        # if not hook:
+        #     logger.warning("Empty hook generated")
+        #     return ""
             
-        # Ensure the hook is not too long
-        if len(hook) > 500:
-            hook = hook[:497] + "..."
+        # # Ensure the hook is not too long
+        # if len(hook) > 500:
+        #     hook = hook[:497] + "..."
             
-        return hook
+        # return hook
+        
+        # Return placeholder instead of making API call
+        return "This is a placeholder hook for the article. The actual hook generation is temporarily disabled to save API requests."
         
     except Exception as e:
         logger.error(f"Error generating hook: {str(e)}")
@@ -198,48 +201,71 @@ def analyze_article(html_content: str, comments: list) -> Dict[str, Any]:
         if not has_valid_comments:
             logger.warning("No valid comments found for analysis")
         
-        # Using gemini-1.5-flash as it's a stable model from the list
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # # Using gemini-1.5-flash as it's a stable model from the list
+        # model = genai.GenerativeModel('gemini-1.5-flash')
         
-        # Format comments
-        comments_text = ""
-        if valid_comments:
-            comments_text = "\n".join([
-                f"Comment {i+1} by {c['author']}: {c['text'][:300]}"
-                for i, c in enumerate(valid_comments)
-            ])
+        # # Format comments
+        # comments_text = ""
+        # if valid_comments:
+        #     comments_text = "\n".join([
+        #         f"Comment {i+1} by {c['author']}: {c['text'][:300]}"
+        #         for i, c in enumerate(valid_comments)
+        #     ])
         
-        # Create a more structured prompt
-        prompt = f"""Analyze this technical article and its comments. Structure your response in three clear sections:
+        # # Create a more structured prompt
+        # prompt = f"""Analyze this technical article and its comments. Structure your response in three clear sections:
+
+        # 1. Summary (2-3 sentences):
+        # 2. Key Points:
+        # 3. Discussion Highlights:
+
+        # Article content:
+        # {result[:3000]}
+
+        # Comments:
+        # {comments_text}
+
+        # Analysis:"""
+        
+        # # Generate with minimal safety settings
+        # response = model.generate_content(
+        #     prompt,
+        #     generation_config={
+        #         "temperature": 0.7,
+        #         "top_p": 0.8,
+        #         "top_k": 40
+        #     }
+        # )
+        
+        # return {
+        #     "analysis": response.text.strip(),
+        #     "metadata": {
+        #         "model": "gemini-1.5-flash",
+        #         "content_length": len(result),
+        #         "comments_analyzed": len(valid_comments)
+        #     }
+        # }
+
+        # Return placeholder instead of making API call
+        return {
+            "analysis": """This is a placeholder analysis for the article. The actual analysis is temporarily disabled to save API requests.
 
 1. Summary (2-3 sentences):
+This is a placeholder summary.
+
 2. Key Points:
+- Placeholder key point 1
+- Placeholder key point 2
+- Placeholder key point 3
+
 3. Discussion Highlights:
-
-Article content:
-{result[:3000]}
-
-Comments:
-{comments_text}
-
-Analysis:"""
-        
-        # Generate with minimal safety settings
-        response = model.generate_content(
-            prompt,
-            generation_config={
-                "temperature": 0.7,
-                "top_p": 0.8,
-                "top_k": 40
-            }
-        )
-        
-        return {
-            "analysis": response.text.strip(),
+- Placeholder discussion point 1
+- Placeholder discussion point 2""",
             "metadata": {
                 "model": "gemini-1.5-flash",
                 "content_length": len(result),
-                "comments_analyzed": len(valid_comments)
+                "comments_analyzed": len(valid_comments),
+                "placeholder": True
             }
         }
     except Exception as e:
@@ -253,9 +279,9 @@ Analysis:"""
         }
 
 async def generate_hook_async(html_content: str) -> str:
-    """Asynchronous wrapper for generate_hook with timeout."""
-    return await run_with_timeout(generate_hook, html_content, timeout=30)
+    """Async wrapper for generate_hook."""
+    return await run_with_timeout(generate_hook, html_content)
 
 async def analyze_article_async(html_content: str, comments: list) -> Dict[str, Any]:
-    """Asynchronous wrapper for analyze_article with timeout."""
-    return await run_with_timeout(analyze_article, html_content, comments, timeout=60)
+    """Async wrapper for analyze_article."""
+    return await run_with_timeout(analyze_article, html_content, comments)

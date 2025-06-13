@@ -3,6 +3,7 @@ import json
 import logging
 from utils.scraper import scrape_hn_frontpage, scrape_full_article, scrape_hn_comments
 from utils.gemini import generate_hook_async, analyze_article_async
+from screenshot import screenshot_manager
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,22 @@ async def stream_articles(offset: int = 0, limit: int = 10):
                     
                 story["full_article_html"] = article_data["html"]
                 story["article_metadata"] = article_data["metadata"]
+                
+                # Take screenshot of the article
+                try:
+                    screenshot_path, error = await screenshot_manager.take_screenshot(
+                        story["article_url"],
+                        story["hn_id"]
+                    )
+                    if screenshot_path:
+                        story["screenshot_path"] = screenshot_path
+                        logger.info(f"Successfully took screenshot for story {story['hn_id']}")
+                    else:
+                        logger.warning(f"Failed to take screenshot for story {story['hn_id']}: {error}")
+                        story["screenshot_path"] = None
+                except Exception as e:
+                    logger.error(f"Error taking screenshot: {str(e)}")
+                    story["screenshot_path"] = None
                 
                 # Generate hook for the article
                 try:

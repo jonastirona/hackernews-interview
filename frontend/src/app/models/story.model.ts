@@ -19,4 +19,5 @@ export interface Story {
   expanded?: boolean;
   showArticle?: boolean;
   showComments?: boolean;
+  screenshot_path?: string;
 } 

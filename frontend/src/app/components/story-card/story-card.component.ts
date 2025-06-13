@@ -1,6 +1,7 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Story } from '../../models/story.model';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-story-card',
@@ -45,7 +46,18 @@ import { Story } from '../../models/story.model';
         </div>
 
         <div class="article-content" *ngIf="showArticle">
-          <div [innerHTML]="story.full_article_html"></div>
+          <div *ngIf="story.screenshot_path" class="screenshot-container">
+            <img [src]="getScreenshotUrl()" 
+                 [alt]="story.title"
+                 class="article-screenshot"
+                 (error)="onScreenshotError()">
+            <div *ngIf="screenshotError" class="screenshot-error">
+              Screenshot unavailable. <a [href]="story.article_url" target="_blank" rel="noopener noreferrer">View original article</a>
+            </div>
+          </div>
+          <div *ngIf="!story.screenshot_path" class="loading-screenshot">
+            Loading screenshot...
+          </div>
         </div>
 
         <div class="comments-section" *ngIf="showComments">
@@ -167,6 +179,47 @@ import { Story } from '../../models/story.model';
       border-radius: 4px;
     }
 
+    .screenshot-container {
+      position: relative;
+      width: 100%;
+      overflow: hidden;
+      border-radius: 4px;
+      background: #fff;
+    }
+
+    .article-screenshot {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 4px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .screenshot-error {
+      padding: 2rem;
+      text-align: center;
+      color: #666;
+      background: #f5f5f5;
+      border-radius: 4px;
+    }
+
+    .screenshot-error a {
+      color: #0066cc;
+      text-decoration: none;
+    }
+
+    .screenshot-error a:hover {
+      text-decoration: underline;
+    }
+
+    .loading-screenshot {
+      padding: 2rem;
+      text-align: center;
+      color: #666;
+      background: #f5f5f5;
+      border-radius: 4px;
+    }
+
     .comments-section {
       margin-top: 1rem;
     }
@@ -231,6 +284,7 @@ export class StoryCardComponent {
   showComments = false;
   commentsOffset = 0;
   hasMoreComments = true;
+  screenshotError = false;
 
   toggleArticle() {
     this.showArticle = !this.showArticle;
@@ -250,5 +304,16 @@ export class StoryCardComponent {
 
   updateComments(hasMore: boolean) {
     this.hasMoreComments = hasMore;
+  }
+
+  onScreenshotError() {
+    this.screenshotError = true;
+  }
+
+  getScreenshotUrl(): string {
+    if (!this.story.screenshot_path) {
+      return '';
+    }
+    return `${environment.apiUrl}${this.story.screenshot_path}`;
   }
 } 

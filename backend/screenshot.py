@@ -33,6 +33,13 @@ class ScreenshotManager:
         Take a screenshot of the given URL and save it to the screenshot directory.
         Returns (path, message): path to the saved screenshot or None, and a message if blocked/failed.
         """
+        # Check if screenshot already exists
+        filename = f"{article_id}.png"
+        filepath = os.path.join(self.screenshot_dir, filename)
+        if os.path.exists(filepath):
+            logger.info(f"Screenshot already exists for article {article_id}, returning existing file")
+            return f"/static/screenshots/{filename}", None
+
         browser = None
         context = None
         page = None
@@ -146,10 +153,6 @@ class ScreenshotManager:
                         logger.warning(f"Blocked or bot detected at {url}, returning block message.")
                         return None, "Screenshot blocked by site"
 
-                    # Take screenshot with retry
-                    filename = f"{article_id}.png"
-                    filepath = os.path.join(self.screenshot_dir, filename)
-                    
                     # Try to take screenshot with different viewport sizes if needed
                     for viewport_height in [800, 1200, 1600]:
                         try:
