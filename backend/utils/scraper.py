@@ -58,6 +58,9 @@ async def scrape_hn_frontpage(limit=10, offset=0):
         start_idx = offset % 30
         story_rows = story_rows[start_idx:start_idx + limit]
         
+        # Check if we've reached the end
+        has_more = len(story_rows) > 0
+        
         for story_row in story_rows:
             # Get the story data
             title = await story_row.query_selector('.titleline a')
@@ -106,7 +109,7 @@ async def scrape_hn_frontpage(limit=10, offset=0):
             })
     finally:
         await page.close()
-    return results
+    return {"stories": results, "has_more": has_more}
 
 def has_bot_detection(text):
     """Check if the text contains bot detection phrases and return the trigger if found."""
@@ -237,17 +240,65 @@ async def scrape_hn_comments(hn_id, offset=0, limit=10):
     try:
         await page.goto(f"https://news.ycombinator.com/item?id={hn_id}")
         
-        comments = await page.query_selector_all('.commtext')
-        comments = comments[:limit]
+        # Get all comment rows (each comment is in a tr.athing followed by tr)
+        comment_rows = await page.query_selector_all('tr.athing.comtr')
+        # Apply pagination
+        comment_rows = comment_rows[offset:offset + limit]
         results = []
         
-        for comment in comments:
-            user = await comment.evaluate('(element) => element.closest(".comment").querySelector(".hnuser")?.textContent || "anonymous"')
-            text = await comment.inner_text()
+        # Check if we've reached the end
+        has_more = len(comment_rows) > 0
+        
+        for comment_row in comment_rows:
+            # Get the comment ID
+            comment_id = await comment_row.get_attribute('id')
+            # Get the comment container (the tr after the athing)
+            comment_container = await page.query_selector(f'tr.athing[id="{comment_id}"] + tr')
+            if not comment_container:
+                continue
+                
+            # Get the comment text container
+            comment_text_container = await comment_container.query_selector('.commtext')
+            if not comment_text_container:
+                continue
+                
+            # Get the username from the .hnuser link
+            user_link = await comment_container.query_selector('a.hnuser')
+            user_text = "anonymous"
+            if user_link:
+                try:
+                    user_text = await user_link.inner_text()
+                    user_text = user_text.strip()
+                except Exception as e:
+                    logger.warning(f"Error extracting username: {str(e)}")
+            
+            # Get the comment text
+            text = ""
+            try:
+                text = await comment_text_container.inner_text()
+                text = text.strip()
+            except Exception as e:
+                logger.warning(f"Error extracting comment text: {str(e)}")
+            
+            # Get the comment depth
+            depth = 0
+            try:
+                indent_img = await comment_row.query_selector('td.ind img')
+                if indent_img:
+                    width = await indent_img.get_attribute('width')
+                    if width:
+                        depth = int(width) // 40
+            except Exception as e:
+                logger.warning(f"Error extracting comment depth: {str(e)}")
+            
             results.append({
-                "user": user,
-                "comment": text
+                "author": user_text,
+                "text": text,
+                "depth": depth
             })
+    except Exception as e:
+        logger.error(f"Error scraping comments for story {hn_id}: {str(e)}")
+        return {"comments": [], "has_more": False}
     finally:
         await page.close()
-    return results
+    return {"comments": results, "has_more": has_more}

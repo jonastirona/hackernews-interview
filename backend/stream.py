@@ -12,7 +12,8 @@ async def stream_articles(offset: int = 0, limit: int = 10):
         logger.info(f"Starting to stream articles with offset={offset}, limit={limit}")
         
         # Get stories from HN frontpage
-        stories = await scrape_hn_frontpage(limit=limit, offset=offset)
+        frontpage_data = await scrape_hn_frontpage(limit=limit, offset=offset)
+        stories = frontpage_data["stories"]
         logger.info(f"Found {len(stories)} stories")
         
         for story in stories:
@@ -41,7 +42,8 @@ async def stream_articles(offset: int = 0, limit: int = 10):
                 
                 # Get comments
                 try:
-                    story["top_comments"] = await scrape_hn_comments(story["hn_id"])
+                    comments_data = await scrape_hn_comments(story["hn_id"])
+                    story["top_comments"] = comments_data["comments"]
                     logger.info(f"Fetched {len(story['top_comments'])} comments for story {story['hn_id']}")
                 except Exception as e:
                     logger.error(f"Error fetching comments: {str(e)}")
@@ -56,6 +58,9 @@ async def stream_articles(offset: int = 0, limit: int = 10):
                     error_msg = f"Error analyzing article: {str(e)}"
                     logger.error(error_msg)
                     story["analysis"] = error_msg
+                
+                # Add has_more flag
+                story["has_more"] = frontpage_data["has_more"]
                 
                 # Yield the story data
                 data = f"data: {json.dumps(story)}\n\n"

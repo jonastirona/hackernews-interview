@@ -29,8 +29,8 @@ async def test_article(url: str):
     return {"html": await scrape_full_article(url)}
 
 @app.get("/debug/comments")
-async def test_comments(id: int):
-    return await scrape_hn_comments(id)
+async def test_comments(id: int, offset: int = 0):
+    return await scrape_hn_comments(id, offset=offset)
 
 @app.get("/analyze")
 async def analyze(offset: int = 0, limit: int = 10):
