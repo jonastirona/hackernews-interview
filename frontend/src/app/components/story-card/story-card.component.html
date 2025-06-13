@@ -1,0 +1,22 @@
+<div class="story-card" (click)="onStoryClick()">
+  <div class="story-header">
+    <h2 class="story-title">{{ story.title }}</h2>
+    <div class="story-meta">
+      <span class="score">{{ story.score }} points</span>
+      <span class="author">by {{ story.by }}</span>
+      <span class="time">{{ getTimeAgo(story.time) }}</span>
+      <span class="comments">{{ story.descendants }} comments</span>
+    </div>
+  </div>
+  
+  <div class="story-content" *ngIf="story.screenshot_path || story.html_content">
+    <div class="screenshot" *ngIf="story.screenshot_path">
+      <img [src]="story.screenshot_path" [alt]="story.title">
+    </div>
+    <div class="html-content" *ngIf="story.html_content" [innerHTML]="story.html_content"></div>
+  </div>
+  
+  <div class="error-message" *ngIf="story.screenshot_error">
+    {{ story.screenshot_error }}
+  </div>
+</div> 
