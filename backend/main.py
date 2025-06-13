@@ -1,16 +1,22 @@
 from fastapi import FastAPI
-from backend.utils.scraper import scrape_hn_frontpage, scrape_full_article, scrape_hn_comments
+from .utils.scraper import scrape_hn_frontpage, scrape_full_article, scrape_hn_comments
+from .stream import stream_articles
+from fastapi.responses import StreamingResponse
 
 app = FastAPI()
 
 @app.get("/debug/frontpage")
-def test_frontpage():
-    return scrape_hn_frontpage()
+async def test_frontpage():
+    return await scrape_hn_frontpage()
 
 @app.get("/debug/article")
-def test_article(url: str):
-    return {"html": scrape_full_article(url)}
+async def test_article(url: str):
+    return {"html": await scrape_full_article(url)}
 
 @app.get("/debug/comments")
-def test_comments(id: int):
-    return scrape_hn_comments(id)
+async def test_comments(id: int):
+    return await scrape_hn_comments(id)
+
+@app.get("/analyze")
+async def analyze(offset: int = 0, limit: int = 10):
+    return StreamingResponse(stream_articles(offset, limit), media_type="text/event-stream")
