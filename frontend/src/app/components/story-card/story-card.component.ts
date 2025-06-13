@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Story } from '../../models/story.model';
 import { environment } from '../../../environments/environment';
@@ -280,7 +280,7 @@ import { environment } from '../../../environments/environment';
     }
   `]
 })
-export class StoryCardComponent implements OnInit {
+export class StoryCardComponent implements OnInit, OnChanges {
   @Input() story!: Story;
   @Output() loadMoreComments = new EventEmitter<{storyId: string, offset: number}>();
   
@@ -290,19 +290,19 @@ export class StoryCardComponent implements OnInit {
   hasMoreComments = true;
   screenshotError: string | null = null;
   screenshotUrl: string | null = null;
-  isLoading = true;
+  isLoading = false;
 
   constructor() {}
 
   ngOnInit() {
-    if (this.story.screenshot_path) {
+    if (this.story) {
       this.loadScreenshot();
-    } else if (this.story.screenshot_error) {
-      this.screenshotError = this.story.screenshot_error;
-      this.isLoading = false;
-    } else {
-      this.screenshotError = "No screenshot available - Please visit the article directly";
-      this.isLoading = false;
+    }
+  }
+
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes['story'] && changes['story'].currentValue) {
+      this.loadScreenshot();
     }
   }
 
@@ -310,6 +310,7 @@ export class StoryCardComponent implements OnInit {
     this.showArticle = !this.showArticle;
     if (this.showArticle) {
       this.showComments = false;
+      this.loadScreenshot();
     }
   }
 
@@ -343,25 +344,17 @@ export class StoryCardComponent implements OnInit {
     return `${environment.apiUrl}${this.story.screenshot_path}`;
   }
 
-  loadScreenshot() {
-    if (!this.story.screenshot_path) {
-      this.screenshotError = "No screenshot available - Please visit the article directly";
+  private loadScreenshot() {
+    if (!this.story?.screenshot_path) {
+      this.screenshotError = this.story?.screenshot_error || "Screenshot unavailable";
       this.isLoading = false;
+      this.screenshotUrl = null;
       return;
     }
 
-    const img = new Image();
-    img.onload = () => {
-      this.screenshotUrl = this.getScreenshotUrl();
-      this.screenshotError = null;
-      this.isLoading = false;
-    };
-    img.onerror = () => {
-      this.screenshotError = "Failed to load screenshot - Please visit the article directly";
-      this.isLoading = false;
-      this.screenshotUrl = null;
-    };
-    img.src = this.getScreenshotUrl();
+    this.isLoading = true;
+    this.screenshotError = null;
+    this.screenshotUrl = this.getScreenshotUrl();
   }
 
   getDomain(url: string): string {

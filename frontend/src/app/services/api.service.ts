@@ -18,6 +18,7 @@ export class ApiService {
   private maxReconnectAttempts = 5;  // Increased max attempts
   private reconnectDelay = 1000;
   private currentOffset = 0;
+  private storiesSubject = new BehaviorSubject<Story[]>([]);
 
   constructor() {}
 
@@ -75,6 +76,7 @@ export class ApiService {
         this.eventSource.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
+            console.log('Received story data:', data);
             this.hasReceivedData = true;
             this.reconnectAttempts = 0; // Reset reconnect attempts on successful data
             
@@ -102,6 +104,8 @@ export class ApiService {
               };
             }
             
+            console.log('Updated stories array:', this.stories);
+            this.storiesSubject.next([...this.stories]);
             observer.next([...this.stories]);
           } catch (error) {
             console.error('Error parsing story data:', error);
@@ -197,5 +201,15 @@ export class ApiService {
       console.error('Error loading more comments:', error);
       throw error;
     }
+  }
+
+  private handleMessage(event: MessageEvent) {
+    const data = JSON.parse(event.data);
+    if (data.error) {
+      console.error('Error from server:', data.error);
+      return;
+    }
+    this.stories.push(data);
+    this.storiesSubject.next(this.stories);
   }
 }
