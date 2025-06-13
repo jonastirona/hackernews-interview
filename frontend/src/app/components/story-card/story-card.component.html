@@ -11,6 +11,28 @@
     </div>
   </div>
 
+  <!-- Hook -->
+  <div class="story-hook" *ngIf="story.hook">
+    {{ story.hook }}
+  </div>
+
+  <!-- Screenshot Status Indicator (always in main card) -->
+  <div *ngIf="!story.screenshot_path || story.screenshot_error" class="screenshot-status">
+    <i class="fas fa-exclamation-circle"></i>
+    <span>
+      {{ story.screenshot_error ? story.screenshot_error : 'Screenshot unavailable' }}
+      - <a [href]="story.url" target="_blank" rel="noopener noreferrer">View article directly</a>
+    </span>
+  </div>
+
+  <!-- Screenshot (main card) -->
+  <div class="screenshot-container" *ngIf="story.screenshot_path">
+    <img [src]="getScreenshotUrl()" 
+         [alt]="story.title"
+         (error)="loadScreenshot()"
+         class="story-screenshot">
+  </div>
+
   <div class="story-actions">
     <button (click)="toggleArticle()" [class.active]="showArticle">
       {{ showArticle ? 'Hide Article' : 'Show Article' }}

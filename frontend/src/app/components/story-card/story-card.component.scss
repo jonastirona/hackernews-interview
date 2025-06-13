@@ -186,6 +186,43 @@
   }
 }
 
+.screenshot-status {
+    background-color: #fff3cd;
+    border: 1px solid #ffeeba;
+    color: #856404;
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+
+    i {
+        color: #856404;
+        font-size: 16px;
+    }
+
+    a {
+        color: #0056b3;
+        text-decoration: underline;
+        
+        &:hover {
+            color: #003d82;
+        }
+    }
+}
+
+.story-hook {
+    font-size: 0.95rem;
+    color: #444;
+    margin: 0.75rem 0;
+    padding: 0.5rem;
+    background-color: #f8f9fa;
+    border-left: 3px solid #0066cc;
+    border-radius: 0 4px 4px 0;
+}
+
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
