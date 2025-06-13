@@ -5,7 +5,7 @@ A modern Hacker News reader that uses AI to analyze articles and provide intelli
 ## Features
 
 - 📰 Real-time Hacker News frontpage scraping
-- 🤖 AI-powered article analysis using Google's Gemini API
+- �� AI-powered article hooks using Google's Gemini API
 - 📸 Automatic article screenshots with bot detection bypass
 - 💬 Nested comment threading
 - 🎯 Smart content extraction and formatting
@@ -23,7 +23,7 @@ A modern Hacker News reader that uses AI to analyze articles and provide intelli
 ### Backend
 - FastAPI
 - Playwright for web scraping
-- Google Gemini API for AI analysis
+- Google Gemini API for article hooks
 - BeautifulSoup4 for HTML parsing
 - Server-sent events for streaming
 
@@ -47,7 +47,7 @@ A modern Hacker News reader that uses AI to analyze articles and provide intelli
    ↓
    Screenshot Manager
    ↓
-   Gemini API Analysis
+   Gemini API Hook Generation
    ↓
    SSE Stream to Frontend
    ```
@@ -56,10 +56,8 @@ A modern Hacker News reader that uses AI to analyze articles and provide intelli
    - Article content is extracted and cleaned
    - Screenshot is captured with anti-bot measures
    - Content is sent to Gemini API for:
-     - Article summary
-     - Key points extraction
-     - Sentiment analysis
-     - Topic categorization
+     - Article hook generation (2-3 sentence summary)
+     - Basic article analysis with comments
 
 ## Future Improvements
 
@@ -110,8 +108,7 @@ A modern Hacker News reader that uses AI to analyze articles and provide intelli
 - IP rotation support
 
 ### Caching Strategy
-- Redis for article content
-- File system for screenshots
+- File system for article content and screenshots
 - Memory cache for API responses
 - Browser cache headers
 
