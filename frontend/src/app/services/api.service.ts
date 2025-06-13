@@ -1,59 +1,76 @@
 import { Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
+import { Story } from '../models/story.model';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ApiService {
+  private apiUrl = 'http://localhost:8001';
+  private eventSource: EventSource | null = null;
+  private eventSubject = new Subject<any>();
+
   constructor() {}
 
-  getArticles(offset: number = 0, limit: number = 10): Observable<any> {
-    return new Observable(observer => {
-      console.log('Starting to fetch articles...');
-      const eventSource = new EventSource(`/analyze?offset=${offset}&limit=${limit}`);
+  getStories(offset: number = 0, limit: number = 10): Observable<Story> {
+    if (this.eventSource) {
+      this.eventSource.close();
+    }
 
+    this.eventSource = new EventSource(`${this.apiUrl}/analyze?offset=${offset}&limit=${limit}`);
+
+    return new Observable<Story>(observer => {
       // Handle regular data events
-      eventSource.onmessage = (event) => {
+      this.eventSource!.onmessage = (event) => {
         try {
-          console.log('Received event:', event.data);
           const data = JSON.parse(event.data);
-          if (data && data.title) {
-            console.log('Parsed story:', data);
-            observer.next(data);
-          } else {
-            console.warn('Received invalid story data:', data);
-          }
+          observer.next(data);
         } catch (error) {
-          console.error('Error parsing story data:', error);
+          console.error('Error parsing event data:', error);
         }
       };
 
       // Handle log events
-      eventSource.addEventListener('log', (event: MessageEvent) => {
+      this.eventSource!.addEventListener('log', (event: MessageEvent) => {
         console.log('Log event:', event.data);
       });
 
       // Handle error events
-      eventSource.addEventListener('error', (event: MessageEvent) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.error('Error event:', data);
-          observer.error(data);
-        } catch (error) {
-          console.error('Error parsing error event:', error);
+      this.eventSource!.addEventListener('error', (event: MessageEvent) => {
+        if (event.data) {
+          try {
+            const data = JSON.parse(event.data);
+            console.error('Error event:', data);
+            observer.error(data);
+          } catch (error) {
+            console.error('Error parsing error event:', error);
+            observer.error(error);
+          }
+        } else {
+          console.error('EventSource error:', event);
+          observer.error(event);
         }
+        this.cleanup();
       });
 
-      eventSource.onerror = (error) => {
-        console.error('EventSource error:', error);
+      // Handle connection errors
+      this.eventSource!.onerror = (error) => {
+        console.error('EventSource connection error:', error);
         observer.error(error);
-        eventSource.close();
+        this.cleanup();
       };
 
       return () => {
-        console.log('Cleaning up EventSource');
-        eventSource.close();
+        this.cleanup();
       };
     });
+  }
+
+  private cleanup() {
+    if (this.eventSource) {
+      console.log('Cleaning up EventSource');
+      this.eventSource.close();
+      this.eventSource = null;
+    }
   }
 }
