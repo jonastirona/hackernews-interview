@@ -13,6 +13,13 @@ logger = logging.getLogger(__name__)
 # Update paths to be relative to the backend directory
 FALLBACK_IMAGE = os.path.join(os.path.dirname(__file__), "static/screenshots/fallback.png")
 
+class ScreenshotError(Exception):
+    """Custom exception for screenshot errors"""
+    def __init__(self, message: str, error_type: str):
+        self.message = message
+        self.error_type = error_type
+        super().__init__(self.message)
+
 class ScreenshotManager:
     def __init__(self, screenshot_dir: str = None):
         if screenshot_dir is None:
@@ -97,7 +104,22 @@ class ScreenshotManager:
                     # Set a longer timeout for loading pages
                     response = await page.goto(url, wait_until="domcontentloaded", timeout=60000)
                     if not response:
-                        return None, "Failed to load page: No response"
+                        raise ScreenshotError("Failed to load page: No response", "connection_error")
+                    
+                    # Check for common error pages
+                    error_indicators = await page.evaluate("""
+                        () => {
+                            const errorTexts = [
+                                '404', 'not found', 'error', 'unavailable',
+                                'access denied', 'forbidden', 'maintenance'
+                            ];
+                            const bodyText = document.body.innerText.toLowerCase();
+                            return errorTexts.some(text => bodyText.includes(text));
+                        }
+                    """)
+                    
+                    if error_indicators:
+                        raise ScreenshotError("Page appears to be an error page", "error_page")
                     
                     # Simulate human-like scrolling
                     await page.evaluate("""
@@ -119,7 +141,7 @@ class ScreenshotManager:
                     
                     # Check if page is still valid
                     if page.is_closed():
-                        return None, "Page was closed unexpectedly"
+                        raise ScreenshotError("Page was closed unexpectedly", "browser_error")
 
                     # Enhanced block detection
                     content = await page.content()
@@ -150,14 +172,13 @@ class ScreenshotManager:
                         await asyncio.sleep(2)
 
                     if any(phrase in content.lower() for phrase in block_phrases):
-                        logger.warning(f"Blocked or bot detected at {url}, returning block message.")
-                        return None, "Screenshot blocked by site"
+                        raise ScreenshotError("Screenshot blocked by site", "blocked")
 
                     # Try to take screenshot with different viewport sizes if needed
                     for viewport_height in [800, 1200, 1600]:
                         try:
                             if page.is_closed():
-                                return None, "Page was closed during screenshot attempt"
+                                raise ScreenshotError("Page was closed during screenshot attempt", "browser_error")
                                 
                             await page.set_viewport_size({'width': 1280, 'height': viewport_height})
                             await asyncio.sleep(1)  # Wait for resize
@@ -167,26 +188,29 @@ class ScreenshotManager:
                                 await page.screenshot(path=filepath, full_page=True)
                                 break
                             else:
-                                return None, "Page was closed during screenshot attempt"
+                                raise ScreenshotError("Page was closed during screenshot attempt", "browser_error")
                                 
                         except Exception as e:
                             logger.warning(f"Failed to take screenshot with height {viewport_height}: {str(e)}")
                             if viewport_height == 1600:  # Last attempt
-                                raise
+                                raise ScreenshotError(f"Failed to take screenshot after multiple attempts: {str(e)}", "screenshot_error")
                             continue
 
                     return f"/static/screenshots/{filename}", None
 
                 except TimeoutError:
-                    logger.error(f"Timeout while loading {url}")
-                    return None, "Timeout while loading page"
+                    raise ScreenshotError("Timeout while loading page", "timeout")
+                except ScreenshotError as e:
+                    raise e
                 except Exception as e:
-                    logger.error(f"Error during page interaction: {str(e)}")
-                    return None, f"Error during page interaction: {str(e)}"
+                    raise ScreenshotError(f"Error during page interaction: {str(e)}", "interaction_error")
 
+        except ScreenshotError as e:
+            logger.error(f"Screenshot error for {url}: {e.message}")
+            return None, f"{e.message} - Please visit the article directly"
         except Exception as e:
             logger.error(f"Failed to take screenshot of {url}: {str(e)}")
-            return None, f"Failed to take screenshot: {str(e)}"
+            return None, f"Failed to take screenshot: {str(e)} - Please visit the article directly"
         finally:
             if page and not page.is_closed():
                 try:

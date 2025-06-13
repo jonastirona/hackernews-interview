@@ -1,22 +1,60 @@
-<div class="story-card" (click)="onStoryClick()">
+<div class="story-card">
   <div class="story-header">
-    <h2 class="story-title">{{ story.title }}</h2>
+    <h2 class="story-title">
+      <a [href]="story.url" target="_blank" rel="noopener noreferrer">{{ story.title }}</a>
+    </h2>
     <div class="story-meta">
-      <span class="score">{{ story.score }} points</span>
+      <span class="points">{{ story.score }} points</span>
       <span class="author">by {{ story.by }}</span>
       <span class="time">{{ getTimeAgo(story.time) }}</span>
-      <span class="comments">{{ story.descendants }} comments</span>
+      <span class="domain">({{ getDomain(story.url) }})</span>
     </div>
   </div>
-  
-  <div class="story-content" *ngIf="story.screenshot_path || story.html_content">
-    <div class="screenshot" *ngIf="story.screenshot_path">
-      <img [src]="story.screenshot_path" [alt]="story.title">
-    </div>
-    <div class="html-content" *ngIf="story.html_content" [innerHTML]="story.html_content"></div>
+
+  <div class="story-actions">
+    <button (click)="toggleArticle()" [class.active]="showArticle">
+      {{ showArticle ? 'Hide Article' : 'Show Article' }}
+    </button>
+    <button (click)="toggleComments()" [class.active]="showComments">
+      {{ showComments ? 'Hide Comments' : 'Show Comments' }}
+    </button>
   </div>
-  
-  <div class="error-message" *ngIf="story.screenshot_error">
-    {{ story.screenshot_error }}
+
+  <div class="article-content" *ngIf="showArticle">
+    <div *ngIf="isLoading" class="loading-screenshot">
+      <div class="spinner"></div>
+      <p>Loading screenshot...</p>
+    </div>
+    
+    <div *ngIf="screenshotError" class="screenshot-error">
+      <p>{{ screenshotError }}</p>
+      <a [href]="story.url" target="_blank" rel="noopener noreferrer" class="view-original">
+        View original article
+      </a>
+    </div>
+
+    <div *ngIf="screenshotUrl && !screenshotError" class="screenshot-container">
+      <img [src]="screenshotUrl" 
+           [alt]="story.title"
+           class="article-screenshot">
+    </div>
+  </div>
+
+  <div class="comments-section" *ngIf="showComments">
+    <div class="comments-list">
+      <div *ngFor="let comment of story.comments" class="comment">
+        <div class="comment-meta">
+          <span class="comment-author">{{ comment.by }}</span>
+          <span class="comment-time">{{ getTimeAgo(comment.time) }}</span>
+        </div>
+        <div class="comment-text" [innerHTML]="comment.text"></div>
+      </div>
+    </div>
+    
+    <div *ngIf="hasMoreComments" class="load-more-comments">
+      <button (click)="loadMoreComments.emit({storyId: story.hn_id, offset: commentsOffset})">
+        Load More Comments
+      </button>
+    </div>
   </div>
 </div> 

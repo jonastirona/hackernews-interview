@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Story } from '../../models/story.model';
 import { environment } from '../../../environments/environment';
@@ -46,17 +46,21 @@ import { environment } from '../../../environments/environment';
         </div>
 
         <div class="article-content" *ngIf="showArticle">
-          <div *ngIf="story.screenshot_path" class="screenshot-container">
-            <img [src]="getScreenshotUrl()" 
+          <div *ngIf="screenshotError" class="screenshot-error">
+            <p>{{ screenshotError }}</p>
+            <a [href]="story.article_url" target="_blank" rel="noopener noreferrer" class="view-original">
+              View original article
+            </a>
+          </div>
+          <div *ngIf="isLoading && !screenshotError" class="loading-screenshot">
+            <div class="spinner"></div>
+            <p>Loading screenshot...</p>
+          </div>
+          <div *ngIf="screenshotUrl && !screenshotError" class="screenshot-container">
+            <img [src]="screenshotUrl" 
                  [alt]="story.title"
                  class="article-screenshot"
                  (error)="onScreenshotError()">
-            <div *ngIf="screenshotError" class="screenshot-error">
-              Screenshot unavailable. <a [href]="story.article_url" target="_blank" rel="noopener noreferrer">View original article</a>
-            </div>
-          </div>
-          <div *ngIf="!story.screenshot_path" class="loading-screenshot">
-            Loading screenshot...
           </div>
         </div>
 
@@ -276,7 +280,7 @@ import { environment } from '../../../environments/environment';
     }
   `]
 })
-export class StoryCardComponent {
+export class StoryCardComponent implements OnInit {
   @Input() story!: Story;
   @Output() loadMoreComments = new EventEmitter<{storyId: string, offset: number}>();
   
@@ -284,14 +288,36 @@ export class StoryCardComponent {
   showComments = false;
   commentsOffset = 0;
   hasMoreComments = true;
-  screenshotError = false;
+  screenshotError: string | null = null;
+  screenshotUrl: string | null = null;
+  isLoading = true;
+
+  constructor() {}
+
+  ngOnInit() {
+    if (this.story.screenshot_path) {
+      this.loadScreenshot();
+    } else if (this.story.screenshot_error) {
+      this.screenshotError = this.story.screenshot_error;
+      this.isLoading = false;
+    } else {
+      this.screenshotError = "No screenshot available - Please visit the article directly";
+      this.isLoading = false;
+    }
+  }
 
   toggleArticle() {
     this.showArticle = !this.showArticle;
+    if (this.showArticle) {
+      this.showComments = false;
+    }
   }
 
   toggleComments() {
     this.showComments = !this.showComments;
+    if (this.showComments) {
+      this.showArticle = false;
+    }
   }
 
   onLoadMoreComments() {
@@ -307,13 +333,54 @@ export class StoryCardComponent {
   }
 
   onScreenshotError() {
-    this.screenshotError = true;
+    this.screenshotError = "Failed to load screenshot - Please visit the article directly";
+    this.isLoading = false;
+    this.screenshotUrl = null;
   }
 
   getScreenshotUrl(): string {
-    if (!this.story.screenshot_path) {
-      return '';
-    }
+    if (!this.story.screenshot_path) return '';
     return `${environment.apiUrl}${this.story.screenshot_path}`;
+  }
+
+  loadScreenshot() {
+    if (!this.story.screenshot_path) {
+      this.screenshotError = "No screenshot available - Please visit the article directly";
+      this.isLoading = false;
+      return;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      this.screenshotUrl = this.getScreenshotUrl();
+      this.screenshotError = null;
+      this.isLoading = false;
+    };
+    img.onerror = () => {
+      this.screenshotError = "Failed to load screenshot - Please visit the article directly";
+      this.isLoading = false;
+      this.screenshotUrl = null;
+    };
+    img.src = this.getScreenshotUrl();
+  }
+
+  getDomain(url: string): string {
+    try {
+      const domain = new URL(url).hostname;
+      return domain.replace('www.', '');
+    } catch {
+      return url;
+    }
+  }
+
+  getTimeAgo(timestamp: number): string {
+    const seconds = Math.floor((Date.now() - timestamp * 1000) / 1000);
+    if (seconds < 60) return `${seconds} seconds ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} day${days === 1 ? '' : 's'} ago`;
   }
 } 

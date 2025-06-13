@@ -1,0 +1,15 @@
+<div class="article-container">
+  <!-- Screenshot display -->
+  <div *ngIf="screenshotUrl" class="screenshot-container">
+    <img [src]="screenshotUrl" alt="Article screenshot" class="screenshot">
+  </div>
+
+  <!-- HTML content fallback -->
+  <div *ngIf="!screenshotUrl && articleContent" class="article-content" [innerHTML]="articleContent">
+  </div>
+
+  <!-- Error message -->
+  <div *ngIf="screenshotError" class="error-message">
+    {{ screenshotError }}
+  </div>
+</div> 

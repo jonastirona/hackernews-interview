@@ -6,18 +6,25 @@ export interface Story {
   points: number;
   author: string;
   comments_count: number;
+  time: number;
   full_article_html?: string;
   article_metadata?: any;
-  top_comments?: {
-    author: string;
-    text: string;
-    points: number;
-    depth: number;
-  }[];
-  analysis?: string;
+  screenshot_path?: string;
+  screenshot_error?: string;
   hook?: string;
+  top_comments?: Comment[];
+  analysis?: any;
+  has_more?: boolean;
   expanded?: boolean;
   showArticle?: boolean;
   showComments?: boolean;
-  screenshot_path?: string;
+}
+
+export interface Comment {
+  id: string;
+  author: string;
+  text: string;
+  time: number;
+  depth: number;
+  children?: Comment[];
 } 
