@@ -11,50 +11,35 @@ import { Subscription } from 'rxjs';
   standalone: true,
   imports: [CommonModule, SkeletonLoaderComponent, StoryCardComponent],
   template: `
-    <div class="min-h-screen bg-gray-50">
-      <!-- Header -->
-      <header class="bg-white shadow-sm">
-        <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <h1 class="text-2xl font-bold text-gray-900">HackerNews OneView</h1>
-        </div>
+    <div class="container">
+      <header>
+        <h1>Hacker News Articles</h1>
       </header>
 
-      <!-- Main Content -->
-      <main class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <!-- Loading State -->
-        <app-skeleton-loader *ngIf="loading && stories.length === 0"></app-skeleton-loader>
-
-        <!-- Error Message -->
-        <div *ngIf="error" 
-             class="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
-          <div class="flex">
-            <div class="flex-shrink-0">
-              <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-              </svg>
-            </div>
-            <div class="ml-3">
-              <p class="text-sm text-red-700">{{ error }}</p>
-            </div>
-          </div>
+      <main>
+        <div *ngIf="error" class="error-message">
+          <span class="error-icon">⚠️</span>
+          {{ error }}
+          <button *ngIf="error" (click)="retry()" class="retry-button">
+            Retry
+          </button>
         </div>
 
-        <!-- Stories Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <app-story-card *ngFor="let story of stories" 
-                         [story]="story">
+        <div *ngIf="loading" class="loading">
+          Loading stories...
+        </div>
+
+        <div *ngIf="!loading && !error" class="stories">
+          <app-story-card
+            *ngFor="let story of stories"
+            [story]="story">
           </app-story-card>
-        </div>
 
-        <!-- Load More Button -->
-        <div class="mt-8 flex justify-center">
-          <button (click)="loadMoreStories()" 
-                  [disabled]="loading"
-                  class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200">
-            <svg *ngIf="loading" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
+          <button
+            *ngIf="stories.length > 0"
+            (click)="loadMoreStories()"
+            [disabled]="loading"
+            class="load-more">
             {{ loading ? 'Loading...' : 'Load More Stories' }}
           </button>
         </div>
@@ -62,8 +47,85 @@ import { Subscription } from 'rxjs';
     </div>
   `,
   styles: [`
-    :host {
-      display: block;
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      color: #1a1a1a;
+      margin: 0;
+    }
+
+    .error-message {
+      background-color: #fff5f5;
+      border-left: 4px solid #f56565;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      color: #c53030;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .error-icon {
+      font-size: 1.2rem;
+    }
+
+    .retry-button {
+      margin-left: auto;
+      padding: 0.5rem 1rem;
+      background-color: #f56565;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background-color 0.2s;
+    }
+
+    .retry-button:hover {
+      background-color: #e53e3e;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 2rem;
+      color: #666;
+    }
+
+    .stories {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .load-more {
+      margin-top: 2rem;
+      padding: 0.75rem 1.5rem;
+      background-color: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .load-more:hover:not(:disabled) {
+      background-color: #0052a3;
+    }
+
+    .load-more:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
     }
   `]
 })
@@ -71,8 +133,9 @@ export class AppComponent implements OnInit, OnDestroy {
   stories: Story[] = [];
   loading = false;
   error: string | null = null;
-  offset = 0;
   private subscription: Subscription | null = null;
+  private offset = 0;
+  private limit = 10;
 
   constructor(private apiService: ApiService) {}
 
@@ -89,33 +152,40 @@ export class AppComponent implements OnInit, OnDestroy {
   loadStories() {
     this.loading = true;
     this.error = null;
-    
+
     if (this.subscription) {
       this.subscription.unsubscribe();
     }
 
-    this.subscription = this.apiService.getStories(this.offset, 10).subscribe({
-      next: (story) => {
-        if (story && story.title) {
-          this.stories.push({
-            ...story,
-            expanded: false,
-            showArticle: false,
-            showComments: false
-          });
+    this.subscription = this.apiService.getStories(this.offset, this.limit).subscribe({
+      next: (newStories) => {
+        if (this.offset === 0) {
+          this.stories = newStories;
+        } else {
+          const existingIds = new Set(this.stories.map(s => s.hn_id));
+          const uniqueNewStories = newStories.filter(s => !existingIds.has(s.hn_id));
+          this.stories = [...this.stories, ...uniqueNewStories];
         }
         this.loading = false;
       },
-      error: (error) => {
-        console.error('Error loading stories:', error);
-        this.error = error.error?.error || 'Error loading stories';
+      error: (err) => {
+        this.error = 'Error loading stories. Please try again later.';
+        this.loading = false;
+        console.error('Error loading stories:', err);
+      },
+      complete: () => {
         this.loading = false;
       }
     });
   }
 
   loadMoreStories() {
-    this.offset += 10;
+    this.offset += this.limit;
+    this.loadStories();
+  }
+
+  retry() {
+    this.error = null;
     this.loadStories();
   }
 
