@@ -1,14 +1,21 @@
 export interface Story {
+  hn_id: string;
   title: string;
+  url: string;
   article_url: string;
-  author: string;
   points: number;
+  author: string;
+  comments_count: number;
   full_article_html?: string;
-  top_comments: Array<{
-    user: string;
-    comment: string;
-  }>;
-  expanded: boolean;
-  showArticle: boolean;
-  showComments: boolean;
+  article_metadata?: any;
+  top_comments?: {
+    author: string;
+    text: string;
+    points: number;
+  }[];
+  analysis?: string;
+  hook?: string;
+  expanded?: boolean;
+  showArticle?: boolean;
+  showComments?: boolean;
 } 
