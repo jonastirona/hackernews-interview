@@ -34,7 +34,7 @@ class ScreenshotManager:
             d = ImageDraw.Draw(img)
             d.text((100, 350), "Screenshot unavailable", fill=(0, 0, 0))
             img.save(FALLBACK_IMAGE)
-
+        
     async def take_screenshot(self, url: str, article_id: str) -> Tuple[Optional[str], Optional[str]]:
         """
         Take a screenshot of the given URL and save it to the screenshot directory.
@@ -58,12 +58,14 @@ class ScreenshotManager:
                     "--disable-dev-shm-usage",
                     "--disable-gpu",
                     "--disable-software-rasterizer",
-                    "--disable-extensions"
+                    "--disable-extensions",
+                    "--disable-web-security",
+                    "--disable-features=IsolateOrigins,site-per-process"
                 ])
                 
                 # Enhanced browser context with more realistic settings
                 context = await browser.new_context(
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                     locale="en-US",
                     timezone_id="America/New_York",
                     viewport={'width': 1280, 'height': 800},
@@ -73,8 +75,8 @@ class ScreenshotManager:
                     color_scheme="light",
                     accept_downloads=True,
                     extra_http_headers={
-                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                        "Accept-Language": "en-US,en;q=0.5",
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+                        "Accept-Language": "en-US,en;q=0.9",
                         "Accept-Encoding": "gzip, deflate, br",
                         "DNT": "1",
                         "Connection": "keep-alive",
@@ -83,7 +85,10 @@ class ScreenshotManager:
                         "Sec-Fetch-Mode": "navigate",
                         "Sec-Fetch-Site": "none",
                         "Sec-Fetch-User": "?1",
-                        "Cache-Control": "max-age=0"
+                        "Cache-Control": "max-age=0",
+                        "Sec-Ch-Ua": '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+                        "Sec-Ch-Ua-Mobile": "?0",
+                        "Sec-Ch-Ua-Platform": '"macOS"'
                     }
                 )
                 
@@ -94,6 +99,9 @@ class ScreenshotManager:
                     Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
                     Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
                     Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+                    Object.defineProperty(navigator, 'platform', {get: () => 'MacIntel'});
+                    Object.defineProperty(navigator, 'hardwareConcurrency', {get: () => 8});
+                    Object.defineProperty(navigator, 'deviceMemory', {get: () => 8});
                     window.chrome = { runtime: {} };
                 """)
 
@@ -104,31 +112,7 @@ class ScreenshotManager:
                     # Set a longer timeout for loading pages
                     response = await page.goto(url, wait_until="domcontentloaded", timeout=60000)
                     if not response:
-                        raise ScreenshotError("Failed to load page: No response", "connection_error")
-                    
-                    # Check for common error pages
-                    error_indicators = await page.evaluate("""
-                        () => {
-                            const errorTexts = [
-                                '404', 'not found', 'error', 'unavailable',
-                                'access denied', 'forbidden', 'maintenance'
-                            ];
-                            const bodyText = document.body.innerText.toLowerCase();
-                            return errorTexts.some(text => bodyText.includes(text));
-                        }
-                    """)
-                    
-                    if error_indicators:
-                        raise ScreenshotError("Page appears to be an error page", "error_page")
-                    
-                    # Simulate human-like scrolling
-                    await page.evaluate("""
-                        window.scrollTo({
-                            top: Math.floor(Math.random() * 100),
-                            behavior: 'smooth'
-                        });
-                    """)
-                    await asyncio.sleep(random.uniform(0.5, 1.0))
+                        return None, "Failed to load page: No response"
                     
                     # Wait for network to be idle
                     try:
@@ -136,12 +120,36 @@ class ScreenshotManager:
                     except TimeoutError:
                         logger.warning("Network did not become idle, continuing anyway")
                     
+                    # Simulate human-like scrolling
+                    await page.evaluate("""
+                        async () => {
+                            const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+                            const scrollHeight = document.body.scrollHeight;
+                            const viewportHeight = window.innerHeight;
+                            const scrollSteps = Math.floor(scrollHeight / viewportHeight);
+                            
+                            for (let i = 0; i < scrollSteps; i++) {
+                                window.scrollTo({
+                                    top: (i + 1) * viewportHeight,
+                                    behavior: 'smooth'
+                                });
+                                await delay(Math.random() * 500 + 500);
+                            }
+                            
+                            // Scroll back to top
+                            window.scrollTo({
+                                top: 0,
+                                behavior: 'smooth'
+                            });
+                        }
+                    """)
+                    
                     # Additional wait for dynamic content
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(random.uniform(2, 4))
                     
                     # Check if page is still valid
                     if page.is_closed():
-                        raise ScreenshotError("Page was closed unexpectedly", "browser_error")
+                        return None, "Page was closed unexpectedly"
 
                     # Enhanced block detection
                     content = await page.content()
@@ -172,13 +180,14 @@ class ScreenshotManager:
                         await asyncio.sleep(2)
 
                     if any(phrase in content.lower() for phrase in block_phrases):
-                        raise ScreenshotError("Screenshot blocked by site", "blocked")
+                        logger.warning(f"Blocked or bot detected at {url}, returning block message.")
+                        return None, "Screenshot blocked by site"
 
                     # Try to take screenshot with different viewport sizes if needed
                     for viewport_height in [800, 1200, 1600]:
                         try:
                             if page.is_closed():
-                                raise ScreenshotError("Page was closed during screenshot attempt", "browser_error")
+                                return None, "Page was closed during screenshot attempt"
                                 
                             await page.set_viewport_size({'width': 1280, 'height': viewport_height})
                             await asyncio.sleep(1)  # Wait for resize
@@ -188,29 +197,26 @@ class ScreenshotManager:
                                 await page.screenshot(path=filepath, full_page=True)
                                 break
                             else:
-                                raise ScreenshotError("Page was closed during screenshot attempt", "browser_error")
+                                return None, "Page was closed during screenshot attempt"
                                 
                         except Exception as e:
                             logger.warning(f"Failed to take screenshot with height {viewport_height}: {str(e)}")
                             if viewport_height == 1600:  # Last attempt
-                                raise ScreenshotError(f"Failed to take screenshot after multiple attempts: {str(e)}", "screenshot_error")
+                                raise
                             continue
 
                     return f"/static/screenshots/{filename}", None
 
                 except TimeoutError:
-                    raise ScreenshotError("Timeout while loading page", "timeout")
-                except ScreenshotError as e:
-                    raise e
+                    logger.error(f"Timeout while loading {url}")
+                    return None, "Timeout while loading page"
                 except Exception as e:
-                    raise ScreenshotError(f"Error during page interaction: {str(e)}", "interaction_error")
+                    logger.error(f"Error during page interaction: {str(e)}")
+                    return None, f"Error during page interaction: {str(e)}"
 
-        except ScreenshotError as e:
-            logger.error(f"Screenshot error for {url}: {e.message}")
-            return None, f"{e.message} - Please visit the article directly"
         except Exception as e:
             logger.error(f"Failed to take screenshot of {url}: {str(e)}")
-            return None, f"Failed to take screenshot: {str(e)} - Please visit the article directly"
+            return None, f"Failed to take screenshot: {str(e)}"
         finally:
             if page and not page.is_closed():
                 try:
