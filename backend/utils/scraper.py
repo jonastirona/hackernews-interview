@@ -3,12 +3,36 @@ from bs4 import BeautifulSoup
 import requests
 from urllib.parse import urljoin, urlparse
 import re
+import asyncio
+
+# Global browser instance
+_browser = None
+_browser_lock = asyncio.Lock()
+
+async def get_browser():
+    global _browser
+    async with _browser_lock:
+        if _browser is None:
+            playwright = await async_playwright().start()
+            _browser = await playwright.chromium.launch(headless=True)
+        return _browser
+
+async def close_browser():
+    global _browser
+    async with _browser_lock:
+        if _browser is not None:
+            try:
+                await _browser.close()
+            except Exception as e:
+                print(f"Error closing browser: {e}")
+            finally:
+                _browser = None
 
 async def scrape_hn_frontpage(limit=10):
     results = []
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
+    browser = await get_browser()
+    page = await browser.new_page()
+    try:
         await page.goto("https://news.ycombinator.com/")
 
         items = await page.query_selector_all('tr.athing')
@@ -37,14 +61,14 @@ async def scrape_hn_frontpage(limit=10):
                 "author": author,
                 "points": points
             })
-
-        await browser.close()
+    finally:
+        await page.close()
     return results
 
 async def scrape_full_article(url):
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
+    browser = await get_browser()
+    page = await browser.new_page()
+    try:
         await page.goto(url, timeout=30000)
         
         # Wait for images to load
@@ -52,7 +76,8 @@ async def scrape_full_article(url):
         
         # Get the full HTML content
         html = await page.content()
-        await browser.close()
+    finally:
+        await page.close()
 
     soup = BeautifulSoup(html, "html.parser")
     
@@ -109,9 +134,9 @@ async def scrape_full_article(url):
     }
 
 async def scrape_hn_comments(hn_id, offset=0, limit=10):
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
+    browser = await get_browser()
+    page = await browser.new_page()
+    try:
         await page.goto(f"https://news.ycombinator.com/item?id={hn_id}")
         
         comments = await page.query_selector_all('.commtext')
@@ -125,6 +150,6 @@ async def scrape_hn_comments(hn_id, offset=0, limit=10):
                 "user": user,
                 "comment": text
             })
-            
-        await browser.close()
+    finally:
+        await page.close()
     return results

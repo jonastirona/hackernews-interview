@@ -1,9 +1,13 @@
 from fastapi import FastAPI
-from .utils.scraper import scrape_hn_frontpage, scrape_full_article, scrape_hn_comments
+from .utils.scraper import scrape_hn_frontpage, scrape_full_article, scrape_hn_comments, close_browser
 from .stream import stream_articles
 from fastapi.responses import StreamingResponse
 
 app = FastAPI()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await close_browser()
 
 @app.get("/debug/frontpage")
 async def test_frontpage():
