@@ -43,7 +43,7 @@ export class ApiService {
     await new Promise(resolve => setTimeout(resolve, delay));
     this.getStories(offset, limit).subscribe(observer);
   }
-
+  //get stories
   getStories(offset: number = 0, limit: number = 10): Observable<Story[]> {
     return new Observable<Story[]>(observer => {
       if (this.isConnecting) {

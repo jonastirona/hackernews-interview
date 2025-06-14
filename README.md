@@ -5,7 +5,7 @@ A modern Hacker News reader that uses AI to analyze articles and provide intelli
 ## Features
 
 - 📰 Real-time Hacker News frontpage scraping
-- �� AI-powered article hooks using Google's Gemini API
+- 🎯 AI-powered article hooks using Google's Gemini API
 - 📸 Automatic article screenshots with bot detection bypass
 - 💬 Nested comment threading
 - 🎯 Smart content extraction and formatting
@@ -59,64 +59,104 @@ A modern Hacker News reader that uses AI to analyze articles and provide intelli
      - Article hook generation (2-3 sentence summary)
      - Basic article analysis with comments
 
+## Directory Structure
+
+```
+hackernews-interview/
+├── backend/                    # FastAPI backend
+│   ├── cache/                 # Article and screenshot cache
+│   ├── static/               # Static files (screenshots)
+│   ├── utils/                # Utility modules
+│   │   ├── scraper.py       # Web scraping utilities
+│   │   └── gemini.py        # Gemini API integration
+│   ├── main.py              # FastAPI application entry
+│   ├── stream.py            # SSE streaming implementation
+│   ├── screenshot.py        # Screenshot management
+│   └── requirements.txt     # Python dependencies
+│
+├── frontend/                  # Angular frontend
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── components/  # Angular components
+│   │   │   │   ├── story-card/      # Story display component
+│   │   │   │   └── skeleton-loader/ # Loading state component
+│   │   │   ├── models/      # TypeScript interfaces
+│   │   │   ├── services/    # API and data services
+│   │   │   └── app.component.ts     # Main application component
+│   │   └── assets/         # Static assets
+│   ├── package.json        # Node.js dependencies
+│   └── angular.json        # Angular configuration
+│
+└── README.md               # Project documentation
+```
+
+### Key Directories Explained
+
+#### Backend
+- `cache/`: Stores processed article data and screenshots
+- `static/`: Serves static files like screenshots
+- `utils/`: Core functionality modules
+  - `scraper.py`: Handles web scraping
+  - `gemini.py`: Manages AI analysis
+- `main.py`: API endpoints and application setup
+- `stream.py`: Server-sent events implementation
+- `screenshot.py`: Screenshot capture and management
+
+#### Frontend
+- `components/`: Reusable UI components
+  - `story-card/`: Displays individual stories
+  - `skeleton-loader/`: Loading state UI
+- `models/`: TypeScript interfaces and types
+- `services/`: API integration and data management
+- `app.component.ts`: Main application logic
+
+## Current Implementation Details
+
+### Resource Management
+- Basic browser instance management with Playwright
+- Error handling and recovery for failed requests
+- Timeout handling for API calls (30 seconds)
+
+### API Integration
+- Direct integration with Google's Gemini API
+- Basic async processing using Python's asyncio
+- File-based caching for article data and screenshots
+- Error handling for API failures
+
+### Caching
+- File system caching for article content and screenshots
+- Browser cache headers for static assets
+- Basic cache validation and cleanup
+
+### Concurrency
+- Async/await implementation for non-blocking operations
+- Server-sent events for real-time updates
+- Basic error handling and reconnection logic
+
 ## Future Improvements
 
-1. **Content Enhancement**
-   - Support for comment sorting and filtering
-   - Pagination beyond 30 articles
-   - Article image/favicon display
-   - Related articles suggestions
-
-2. **UI/UX Improvements**
-   - Dark mode support
-   - Mobile-first responsive design
-   - Keyboard navigation
-   - Customizable feed preferences
-
-3. **Performance**
+1. **Performance**
    - Client-side caching
    - Progressive image loading
    - Optimized bundle size
    - Service worker for offline support
 
-4. **Features**
+2. **Features**
    - User authentication
    - Saved articles
    - Custom feeds
    - Share functionality
 
-## Scaling Strategy
-
-### Resource Management
-- **Playwright Sessions**
-  - Async queue for browser instances
-  - Connection pooling
-  - Automatic cleanup
-  - Error recovery
-
-### API Optimization
-- **Gemini API**
-  - Worker pool for parallel processing
-  - Request batching
-  - Response caching
-  - Rate limiting
-
-### Anti-Ban Measures
-- Domain-specific rate limiting
-- Rotating user agents
-- Request delays
-- IP rotation support
-
-### Caching Strategy
-- File system for article content and screenshots
-- Memory cache for API responses
-- Browser cache headers
-
-### Concurrency
-- Job-based request tracking
-- User session management
-- Resource allocation per user
-- Queue prioritization
+3. **Scaling**
+   - Worker pool for parallel processing
+   - Request batching for API calls
+   - Advanced response caching
+   - Rate limiting implementation
+   - Connection pooling
+   - Job-based request tracking
+   - User session management
+   - Resource allocation per user
+   - Queue prioritization
 
 ## Development
 
@@ -164,8 +204,6 @@ ng test
 ## Credits
 
 - Original repository: [RA-Trio/hackernews-interview](https://github.com/RA-Trio/hackernews-interview)
-- AI powered by [Google Gemini API](https://ai.google.dev/)
-- Built by Jonas
 
 ## License
 
