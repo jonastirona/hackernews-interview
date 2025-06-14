@@ -288,7 +288,7 @@ async def scrape_hn_comments(hn_id, offset=0, limit=10):
         limit: Maximum number of comments to return
         
     Returns:
-        List of comment dictionaries
+        Dictionary containing comments list and pagination info
     """
     async with get_browser_context() as (browser, page):
         try:
@@ -322,7 +322,10 @@ async def scrape_hn_comments(hn_id, offset=0, limit=10):
                     'depth': depth
                 })
                 
-            return results
+            return {
+                "comments": results,
+                "has_more": len(comment_rows) == limit
+            }
         except Exception as e:
             logger.error(f"Error scraping comments: {e}")
-            raise
+            return {"comments": [], "has_more": False}

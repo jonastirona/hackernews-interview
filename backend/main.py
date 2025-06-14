@@ -63,7 +63,8 @@ async def test_comments(id: int, offset: int = 0):
         id: Hacker News story ID
         offset: Number of comments to skip
     """
-    return await scrape_hn_comments(id, offset=offset)
+    comments = await scrape_hn_comments(id, offset=offset)
+    return {"comments": comments, "has_more": len(comments) > 0}
 
 @app.get("/analyze")
 async def analyze(offset: int = 0, limit: int = 10):

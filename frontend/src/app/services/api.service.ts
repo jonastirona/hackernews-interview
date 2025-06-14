@@ -180,12 +180,15 @@ export class ApiService {
         const story = this.stories[storyIndex];
         const existingComments = story.top_comments || [];
         
+        // Ensure data.comments exists and is an array
+        const newComments = Array.isArray(data.comments) ? data.comments : [];
+        
         // Filter out any potential duplicates based on author and text
         const existingCommentKeys = new Set(
           existingComments.map(c => `${c.author}:${c.text}`)
         );
         
-        const uniqueNewComments = data.comments.filter(
+        const uniqueNewComments = newComments.filter(
           (c: any) => !existingCommentKeys.has(`${c.author}:${c.text}`)
         );
         
@@ -195,7 +198,7 @@ export class ApiService {
       
       return {
         stories: [...this.stories],
-        hasMore: data.has_more
+        hasMore: data.has_more || false
       };
     } catch (error) {
       console.error('Error loading more comments:', error);
